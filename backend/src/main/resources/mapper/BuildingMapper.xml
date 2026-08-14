@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuhan.twin.building.mapper.BuildingMapper">
+
+    <resultMap id="buildingDetailMap" type="com.wuhan.twin.building.entity.BuildingDO">
+        <id column="id" property="id"/>
+        <result column="osm_id" property="osmId"/>
+        <result column="name" property="name"/>
+        <result column="building_type" property="buildingType"/>
+        <result column="levels" property="levels"/>
+        <result column="height" property="height"/>
+        <result column="height_source" property="heightSource"/>
+        <result column="base_altitude" property="baseAltitude"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="footprint_geo_json" property="footprintGeoJson"/>
+        <result column="lon" property="lon"/>
+        <result column="lat" property="lat"/>
+    </resultMap>
+
+    <!-- 四个边界由 service 层保证同时有值或同时为 null；命中 footprint 上的 GIST 索引 -->
+    <sql id="bboxFilter">
+        <if test="west != null and south != null and east != null and north != null">
+            AND ST_Intersects(b.footprint, ST_MakeEnvelope(#{west}, #{south}, #{east}, #{north}, 4326))
+        </if>
+    </sql>
+
+    <select id="selectDetailById" resultMap="buildingDetailMap">
+        SELECT
+            b.id,
+            b.osm_id,
+            b.name,
+            b.building_type,
+            b.levels,
+            b.height,
+            b.height_source,
+            b.base_altitude,
+            b.created_at,
+            ST_AsGeoJSON(b.footprint, 6) AS footprint_geo_json,
+            ST_X(b.center) AS lon,
+            ST_Y(b.center) AS lat
+        FROM t_building AS b
+        WHERE b.id = #{id}
+    </select>
+
+    <!-- FeatureCollection 直接由 PostGIS 拼装，避免 Java 侧逐要素拼 JSON -->
+    <select id="selectGeoJson" resultType="java.lang.String">
+        SELECT jsonb_build_object(
+            'type', 'FeatureCollection',
+            'features', coalesce(jsonb_agg(feature.value), '[]'::jsonb)
+        )::text
+        FROM (
+            SELECT jsonb_build_object(
+                'type', 'Feature',
+                'id', b.id,
+                'geometry', ST_AsGeoJSON(b.footprint, 6)::jsonb,
+                'properties', jsonb_build_object(
+                    'name', b.name,
+                    'buildingType', b.building_type,
+                    'levels', b.levels,
+                    'height', b.height,
+                    'heightSource', b.height_source,
+                    'baseAltitude', b.base_altitude
+                )
+            ) AS value
+            FROM t_building AS b
+            <where>
+                <include refid="bboxFilter"/>
+            </where>
+            ORDER BY b.id
+            LIMIT #{maxFeatures}
+        ) AS feature
+    </select>
+
+    <select id="countByBbox" resultType="java.lang.Long">
+        SELECT count(*)
+        FROM t_building AS b
+        <where>
+            <include refid="bboxFilter"/>
+        </where>
+    </select>
+
+</mapper>

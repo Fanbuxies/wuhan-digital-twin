@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: twin-backend
+  profiles:
+    active: dev
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  # mapper xml 统一放 resources/mapper 下，当前尚无业务 mapper
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    # 数据库下划线字段自动映射为驼峰属性，如 height_source -> heightSource
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      # 主键由数据库 bigserial 生成
+      id-type: auto
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  tileset:
+    # 3D Tiles 尚未生成，留空则 tileset-info 返回 null，前端走 GeoJSON 降级
+    url:
+    # 相机位置是视点而非注视点，视线落在其正北约 height/tan(|pitch|) 处，
+    # 故视点压到 bbox 南侧，斜俯视才能框住全域
+    camera:
+      lon: 114.3140
+      lat: 30.5320
+      height: 4200
+      heading: 0
+      pitch: -40
+  building:
+    # GeoJSON 单次返回要素上限，当前全域 2884 栋，留足余量
+    geojson-max-features: 6000
+  simulator:
+    # 关闭后不注册调度线程，实时表停止刷新但接口仍可读历史值
+    enabled: true
+    # 调度周期，单位毫秒，与 docs 约定的 3 秒推送节奏一致
+    fixed-rate: 3000
+    # 单设备单次调度的告警概率，228 台在线设备约每分钟 10 条
+    alarm-probability: 0.002
+    # 每 5 次调度（15 秒）落一批历史遥测
+    telemetry-tick-interval: 5

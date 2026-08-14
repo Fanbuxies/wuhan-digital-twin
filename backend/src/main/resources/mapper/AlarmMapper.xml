@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuhan.twin.alarm.mapper.AlarmMapper">
+
+    <insert id="batchInsert">
+        INSERT INTO t_alarm (device_id, alarm_type, alarm_level, alarm_value, status, occur_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.deviceId}, #{item.alarmType}, #{item.alarmLevel},
+             #{item.alarmValueJson}::jsonb, 'PENDING', #{item.occurTime})
+        </foreach>
+    </insert>
+
+    <select id="selectPendingDeviceIds" resultType="java.lang.Long">
+        SELECT DISTINCT a.device_id
+        FROM t_alarm AS a
+        WHERE a.status = 'PENDING'
+    </select>
+
+</mapper>
