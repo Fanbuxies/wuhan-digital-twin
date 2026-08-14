@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuhan.twin.device.mapper.DeviceMapper">
+
+    <resultMap id="deviceMap" type="com.wuhan.twin.device.entity.DeviceDO">
+        <id column="id" property="id"/>
+        <result column="device_code" property="deviceCode"/>
+        <result column="device_name" property="deviceName"/>
+        <result column="device_type" property="deviceType"/>
+        <result column="building_id" property="buildingId"/>
+        <result column="floor" property="floor"/>
+        <result column="altitude" property="altitude"/>
+        <result column="status" property="status"/>
+        <result column="install_time" property="installTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="lon" property="lon"/>
+        <result column="lat" property="lat"/>
+    </resultMap>
+
+    <select id="selectDeviceList" resultMap="deviceMap">
+        SELECT
+            d.id,
+            d.device_code,
+            d.device_name,
+            d.device_type,
+            d.building_id,
+            d.floor,
+            d.altitude,
+            d.status,
+            d.install_time,
+            d.created_at,
+            ST_X(d.location) AS lon,
+            ST_Y(d.location) AS lat
+        FROM t_device AS d
+        <where>
+            <if test="buildingId != null">
+                AND d.building_id = #{buildingId}
+            </if>
+            <if test="deviceType != null">
+                AND d.device_type = #{deviceType}
+            </if>
+        </where>
+        ORDER BY d.building_id, d.id
+    </select>
+
+    <select id="selectOnlineDevices" resultMap="deviceMap">
+        SELECT
+            d.id,
+            d.device_type
+        FROM t_device AS d
+        WHERE d.status = 'ONLINE'
+        ORDER BY d.id
+    </select>
+
+</mapper>

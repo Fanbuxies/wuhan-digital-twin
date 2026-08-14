@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    # 端口 5434 与 docker-compose.yml 的映射保持一致
+    url: jdbc:postgresql://localhost:5434/twin
+    username: twin
+    # 密码从环境变量读取，与 data-prep 脚本一致，禁止写入配置文件
+    password: ${PGPASSWORD}
+    hikari:
+      pool-name: TwinHikariPool
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+logging:
+  level:
+    com.wuhan.twin: debug

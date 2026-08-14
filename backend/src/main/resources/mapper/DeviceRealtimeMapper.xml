@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuhan.twin.device.mapper.DeviceRealtimeMapper">
+
+    <resultMap id="realtimeMap" type="com.wuhan.twin.device.entity.DeviceRealtimeDO">
+        <id column="device_id" property="deviceId"/>
+        <result column="metrics_json" property="metricsJson"/>
+        <result column="alarm_level" property="alarmLevel"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="batchUpsert">
+        INSERT INTO t_device_realtime (device_id, metrics, alarm_level, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.deviceId}, #{item.metricsJson}::jsonb, #{item.alarmLevel}, #{item.ts})
+        </foreach>
+        ON CONFLICT (device_id) DO UPDATE SET
+            metrics = excluded.metrics,
+            alarm_level = excluded.alarm_level,
+            update_time = excluded.update_time
+    </insert>
+
+    <select id="selectByDeviceId" resultMap="realtimeMap">
+        SELECT
+            r.device_id,
+            r.metrics::text AS metrics_json,
+            r.alarm_level,
+            r.update_time
+        FROM t_device_realtime AS r
+        WHERE r.device_id = #{deviceId}
+    </select>
+
+</mapper>

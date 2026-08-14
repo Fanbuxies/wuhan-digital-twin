@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "twin-backend",
+      "runtimeExecutable": "mvn.cmd",
+      "runtimeArgs": ["-B", "-f", "backend/pom.xml", "spring-boot:run"],
+      "port": 8080
+    },
+    {
+      "name": "twin-frontend",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+# 构建产物
+target/
+dist/
+
+# 前端依赖
+node_modules/
+
+# PostGIS 容器数据目录
+pgdata/
+
+# 环境变量与密钥
+.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+
+# 数据准备中间产物
+data-prep/output/
+
+# Claude Code 本机权限设置
+.claude/settings.local.json
