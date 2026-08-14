@@ -10,7 +10,7 @@ import lombok.Getter;
  * @author lvfan
  */
 @Getter
-public enum ResultCode {
+public enum ResultCodeEnum {
 
     /**
      * 成功
@@ -52,7 +52,7 @@ public enum ResultCode {
      */
     private final String msg;
 
-    ResultCode(int code, String msg) {
+    ResultCodeEnum(int code, String msg) {
         this.code = code;
         this.msg = msg;
     }

@@ -6,13 +6,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.wuhan.twin.alarm.enums.AlarmTypeEnum;
 import com.wuhan.twin.device.enums.DeviceTypeEnum;
 import lombok.Getter;
 
 /**
  * 按设备类型生成模拟指标与告警判定
  *
- * <p>正常区间与告警值域全部常量化，便于统一调整。数值一律 BigDecimal，避免 double 落库精度问题。</p>
+ * <p>正常区间与告警值域全部常量化，便于统一调整。
+ * 数值一律 BigDecimal，避免 double 落库精度问题。</p>
  *
  * @author lvfan
  */
@@ -127,6 +129,27 @@ public final class MetricsGenerator {
      */
     private static final int FRAME_RATE = 25;
 
+    /**
+     * 指标 JSON 字段名，与前端展示契约保持一致
+     */
+    private static final String KEY_SMOKE = "smoke";
+
+    private static final String KEY_BATTERY = "battery";
+
+    private static final String KEY_LEAK = "leak";
+
+    private static final String KEY_HUMIDITY = "humidity";
+
+    private static final String KEY_TEMPERATURE = "temperature";
+
+    private static final String KEY_VOLTAGE = "voltage";
+
+    private static final String KEY_CURRENT = "current";
+
+    private static final String KEY_BITRATE = "bitrate";
+
+    private static final String KEY_FRAME_RATE = "frameRate";
+
     private MetricsGenerator() {
     }
 
@@ -157,54 +180,54 @@ public final class MetricsGenerator {
 
     private static Sample smoke(boolean triggerAlarm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("smoke", triggerAlarm
+        metrics.put(KEY_SMOKE, triggerAlarm
                 ? randomDecimal(SMOKE_ALARM_MIN, SMOKE_ALARM_MAX)
                 : randomDecimal(SMOKE_MIN, SMOKE_MAX));
-        metrics.put("battery", randomDecimal(BATTERY_MIN, BATTERY_MAX));
+        metrics.put(KEY_BATTERY, randomDecimal(BATTERY_MIN, BATTERY_MAX));
         return triggerAlarm
-                ? new Sample(metrics, LEVEL_ALARM, "SMOKE_ALARM")
+                ? new Sample(metrics, LEVEL_ALARM, AlarmTypeEnum.SMOKE_ALARM.name())
                 : new Sample(metrics, LEVEL_NORMAL, null);
     }
 
     private static Sample water(boolean triggerAlarm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("leak", triggerAlarm ? LEAK_DETECTED : LEAK_NONE);
-        metrics.put("humidity", randomDecimal(HUMIDITY_MIN, HUMIDITY_MAX));
+        metrics.put(KEY_LEAK, triggerAlarm ? LEAK_DETECTED : LEAK_NONE);
+        metrics.put(KEY_HUMIDITY, randomDecimal(HUMIDITY_MIN, HUMIDITY_MAX));
         return triggerAlarm
-                ? new Sample(metrics, LEVEL_ALARM, "WATER_LEAK")
+                ? new Sample(metrics, LEVEL_ALARM, AlarmTypeEnum.WATER_LEAK.name())
                 : new Sample(metrics, LEVEL_NORMAL, null);
     }
 
     private static Sample tempHumi(boolean triggerAlarm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("temperature", triggerAlarm
+        metrics.put(KEY_TEMPERATURE, triggerAlarm
                 ? randomDecimal(TEMPERATURE_WARN_MIN, TEMPERATURE_WARN_MAX)
                 : randomDecimal(TEMPERATURE_MIN, TEMPERATURE_MAX));
-        metrics.put("humidity", randomDecimal(HUMIDITY_MIN, HUMIDITY_MAX));
+        metrics.put(KEY_HUMIDITY, randomDecimal(HUMIDITY_MIN, HUMIDITY_MAX));
         return triggerAlarm
-                ? new Sample(metrics, LEVEL_WARN, "TEMP_HIGH")
+                ? new Sample(metrics, LEVEL_WARN, AlarmTypeEnum.TEMP_HIGH.name())
                 : new Sample(metrics, LEVEL_NORMAL, null);
     }
 
     private static Sample electric(boolean triggerAlarm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("voltage", randomDecimal(VOLTAGE_MIN, VOLTAGE_MAX));
-        metrics.put("current", triggerAlarm
+        metrics.put(KEY_VOLTAGE, randomDecimal(VOLTAGE_MIN, VOLTAGE_MAX));
+        metrics.put(KEY_CURRENT, triggerAlarm
                 ? randomDecimal(CURRENT_ALARM_MIN, CURRENT_ALARM_MAX)
                 : randomDecimal(CURRENT_MIN, CURRENT_MAX));
         return triggerAlarm
-                ? new Sample(metrics, LEVEL_ALARM, "CURRENT_HIGH")
+                ? new Sample(metrics, LEVEL_ALARM, AlarmTypeEnum.CURRENT_HIGH.name())
                 : new Sample(metrics, LEVEL_NORMAL, null);
     }
 
     private static Sample camera(boolean triggerAlarm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("bitrate", triggerAlarm
+        metrics.put(KEY_BITRATE, triggerAlarm
                 ? randomDecimal(BITRATE_LOST_MIN, BITRATE_LOST_MAX)
                 : randomDecimal(BITRATE_MIN, BITRATE_MAX));
-        metrics.put("frameRate", FRAME_RATE);
+        metrics.put(KEY_FRAME_RATE, FRAME_RATE);
         return triggerAlarm
-                ? new Sample(metrics, LEVEL_WARN, "STREAM_LOST")
+                ? new Sample(metrics, LEVEL_WARN, AlarmTypeEnum.STREAM_LOST.name())
                 : new Sample(metrics, LEVEL_NORMAL, null);
     }
 

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuhan.twin.common.exception.BizException;
-import com.wuhan.twin.common.result.ResultCode;
+import com.wuhan.twin.common.result.ResultCodeEnum;
 import com.wuhan.twin.device.dto.DeviceMetricsDTO;
 import com.wuhan.twin.device.entity.DeviceRealtimeDO;
 import com.wuhan.twin.device.mapper.DeviceRealtimeMapper;
@@ -54,7 +54,7 @@ public class DeviceRealtimeServiceImpl implements DeviceRealtimeService {
     public DeviceRealtimeVO getRealtime(Long deviceId) {
         DeviceRealtimeDO realtime = deviceRealtimeMapper.selectByDeviceId(deviceId);
         if (realtime == null) {
-            throw new BizException(ResultCode.NOT_FOUND, "设备暂无实时数据：" + deviceId);
+            throw new BizException(ResultCodeEnum.NOT_FOUND, "设备暂无实时数据：" + deviceId);
         }
         DeviceRealtimeVO vo = new DeviceRealtimeVO();
         vo.setDeviceId(realtime.getDeviceId());
@@ -92,7 +92,7 @@ public class DeviceRealtimeServiceImpl implements DeviceRealtimeService {
             return objectMapper.readTree(json);
         } catch (JsonProcessingException e) {
             log.error("实时指标 JSON 无法解析，长度 {}", json.length(), e);
-            throw new BizException(ResultCode.SYSTEM_ERROR);
+            throw new BizException(ResultCodeEnum.SYSTEM_ERROR);
         }
     }
 }

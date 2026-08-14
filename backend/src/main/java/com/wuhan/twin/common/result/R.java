@@ -46,13 +46,13 @@ public class R<T> implements Serializable {
      * 成功，携带业务数据
      */
     public static <T> R<T> ok(T data) {
-        return new R<>(ResultCode.SUCCESS.getCode(), ResultCode.SUCCESS.getMsg(), data);
+        return new R<>(ResultCodeEnum.SUCCESS.getCode(), ResultCodeEnum.SUCCESS.getMsg(), data);
     }
 
     /**
      * 失败，使用枚举自带的码与提示
      */
-    public static <T> R<T> fail(ResultCode resultCode) {
+    public static <T> R<T> fail(ResultCodeEnum resultCode) {
         return new R<>(resultCode.getCode(), resultCode.getMsg(), null);
     }
 
@@ -60,7 +60,7 @@ public class R<T> implements Serializable {
      * 失败，业务默认码 + 自定义提示
      */
     public static <T> R<T> fail(String msg) {
-        return new R<>(ResultCode.BIZ_ERROR.getCode(), msg, null);
+        return new R<>(ResultCodeEnum.BIZ_ERROR.getCode(), msg, null);
     }
 
     /**

@@ -107,7 +107,8 @@ public class AppProperties {
         private Long fixedRate = 3000L;
 
         /**
-         * 单设备单次调度的告警触发概率。250 台设备按 5% 算每分钟上百条，故默认压到 0.002
+         * 单设备单次调度的告警触发概率。250 台设备按 5% 算每分钟上百条，
+         * 故默认压到 0.002
          */
         private Double alarmProbability = 0.002D;
 

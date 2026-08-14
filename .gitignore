@@ -22,5 +22,8 @@ __pycache__/
 # 数据准备中间产物
 data-prep/output/
 
+# 后端日志
+logs/
+
 # Claude Code 本机权限设置
 .claude/settings.local.json

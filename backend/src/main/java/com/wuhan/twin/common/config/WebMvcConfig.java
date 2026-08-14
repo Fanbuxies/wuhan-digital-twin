@@ -21,7 +21,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/**")
-                // 用 allowedOriginPatterns 而非 allowedOrigins("*")，后者与 allowCredentials(true) 冲突会启动失败
+                // 用 allowedOriginPatterns 而非 allowedOrigins("*")，
+                // 后者与 allowCredentials(true) 冲突会启动失败
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")

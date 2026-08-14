@@ -10,7 +10,9 @@ import com.wuhan.twin.device.vo.DeviceVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "设备", description = "楼宇物联网设备台账")
 @RestController
 @RequestMapping("/api/device")
+@Validated
 @RequiredArgsConstructor
 public class DeviceController {
 
@@ -44,7 +47,7 @@ public class DeviceController {
     @Operation(summary = "设备实时值", description = "设备尚无实时数据时返回 404")
     @GetMapping("/{id}/realtime")
     public R<DeviceRealtimeVO> realtime(
-            @Parameter(description = "设备主键") @PathVariable Long id) {
+            @Parameter(description = "设备主键") @Min(1) @PathVariable Long id) {
         return R.ok(deviceRealtimeService.getRealtime(id));
     }
 }

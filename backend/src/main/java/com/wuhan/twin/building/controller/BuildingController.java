@@ -8,7 +8,9 @@ import com.wuhan.twin.common.result.R;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "建筑", description = "三维底座数据源与建筑信息")
 @RestController
 @RequestMapping("/api/building")
+@Validated
 @RequiredArgsConstructor
 public class BuildingController {
 
@@ -37,7 +40,7 @@ public class BuildingController {
 
     @Operation(summary = "建筑详情")
     @GetMapping("/{id}")
-    public R<BuildingDetailVO> detail(@Parameter(description = "建筑主键") @PathVariable Long id) {
+    public R<BuildingDetailVO> detail(@Parameter(description = "建筑主键") @Min(1) @PathVariable Long id) {
         return R.ok(buildingService.getDetail(id));
     }
 
@@ -45,7 +48,8 @@ public class BuildingController {
             description = "bbox 选填，缺省返回全域；返回条数受 app.building.geojson-max-features 限制")
     @GetMapping("/geojson")
     public R<JsonNode> geoJson(
-            @Parameter(description = "视口范围，格式 west,south,east,north") @RequestParam(required = false) String bbox) {
+            @Parameter(description = "视口范围，格式 west,south,east,north")
+            @RequestParam(required = false) String bbox) {
         return R.ok(buildingService.getGeoJson(bbox));
     }
 }

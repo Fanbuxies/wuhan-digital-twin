@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.wuhan.twin.common.exception.BizException;
-import com.wuhan.twin.common.result.ResultCode;
+import com.wuhan.twin.common.result.ResultCodeEnum;
 import com.wuhan.twin.device.entity.DeviceDO;
 import com.wuhan.twin.device.enums.DeviceTypeEnum;
 import com.wuhan.twin.device.mapper.DeviceMapper;
@@ -34,7 +34,7 @@ public class DeviceServiceImpl implements DeviceService {
             String supported = Arrays.stream(DeviceTypeEnum.values())
                     .map(Enum::name)
                     .collect(Collectors.joining("/"));
-            throw new BizException(ResultCode.PARAM_ERROR, "设备类型不支持，可选值：" + supported);
+            throw new BizException(ResultCodeEnum.PARAM_ERROR, "设备类型不支持，可选值：" + supported);
         }
         return deviceMapper.selectDeviceList(buildingId, normalizedType).stream()
                 .map(DeviceServiceImpl::toVo)

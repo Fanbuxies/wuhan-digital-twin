@@ -14,7 +14,7 @@ import com.wuhan.twin.alarm.mapper.AlarmMapper;
 import com.wuhan.twin.alarm.service.AlarmService;
 import com.wuhan.twin.alarm.vo.AlarmVO;
 import com.wuhan.twin.common.exception.BizException;
-import com.wuhan.twin.common.result.ResultCode;
+import com.wuhan.twin.common.result.ResultCodeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -81,7 +81,7 @@ public class AlarmServiceImpl implements AlarmService {
             return objectMapper.readTree(json);
         } catch (JsonProcessingException e) {
             log.error("告警指标 JSON 无法解析，长度 {}", json.length(), e);
-            throw new BizException(ResultCode.SYSTEM_ERROR);
+            throw new BizException(ResultCodeEnum.SYSTEM_ERROR);
         }
     }
 }

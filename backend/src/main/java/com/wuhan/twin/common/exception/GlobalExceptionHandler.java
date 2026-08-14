@@ -1,7 +1,7 @@
 package com.wuhan.twin.common.exception;
 
 import com.wuhan.twin.common.result.R;
-import com.wuhan.twin.common.result.ResultCode;
+import com.wuhan.twin.common.result.ResultCodeEnum;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -43,9 +43,9 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(GlobalExceptionHandler::formatFieldError)
-                .orElse(ResultCode.PARAM_ERROR.getMsg());
+                .orElse(ResultCodeEnum.PARAM_ERROR.getMsg());
         log.warn("参数校验失败 [{} {}]：{}", request.getMethod(), request.getRequestURI(), msg);
-        return R.fail(ResultCode.PARAM_ERROR.getCode(), msg);
+        return R.fail(ResultCodeEnum.PARAM_ERROR.getCode(), msg);
     }
 
     /**
@@ -56,9 +56,9 @@ public class GlobalExceptionHandler {
         String msg = e.getConstraintViolations().stream()
                 .findFirst()
                 .map(violation -> violation.getPropertyPath() + " " + violation.getMessage())
-                .orElse(ResultCode.PARAM_ERROR.getMsg());
+                .orElse(ResultCodeEnum.PARAM_ERROR.getMsg());
         log.warn("参数校验失败 [{} {}]：{}", request.getMethod(), request.getRequestURI(), msg);
-        return R.fail(ResultCode.PARAM_ERROR.getCode(), msg);
+        return R.fail(ResultCodeEnum.PARAM_ERROR.getCode(), msg);
     }
 
     /**
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
     public R<Void> handleMissingParameter(MissingServletRequestParameterException e, HttpServletRequest request) {
         String msg = "缺少必填参数：" + e.getParameterName();
         log.warn("参数缺失 [{} {}]：{}", request.getMethod(), request.getRequestURI(), msg);
-        return R.fail(ResultCode.PARAM_ERROR.getCode(), msg);
+        return R.fail(ResultCodeEnum.PARAM_ERROR.getCode(), msg);
     }
 
     /**
@@ -78,7 +78,7 @@ public class GlobalExceptionHandler {
     public R<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e, HttpServletRequest request) {
         String msg = "参数类型不正确：" + e.getName();
         log.warn("参数类型错误 [{} {}]：{}", request.getMethod(), request.getRequestURI(), msg);
-        return R.fail(ResultCode.PARAM_ERROR.getCode(), msg);
+        return R.fail(ResultCodeEnum.PARAM_ERROR.getCode(), msg);
     }
 
     /**
@@ -87,7 +87,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public R<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
         log.warn("请求方法不支持 [{} {}]：{}", request.getMethod(), request.getRequestURI(), e.getMessage());
-        return R.fail(ResultCode.METHOD_NOT_ALLOWED);
+        return R.fail(ResultCodeEnum.METHOD_NOT_ALLOWED);
     }
 
     /**
@@ -97,7 +97,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public R<Void> handleNoResourceFound(NoResourceFoundException e, HttpServletRequest request) {
         log.warn("路径不存在 [{} {}]", request.getMethod(), request.getRequestURI());
-        return R.fail(ResultCode.NOT_FOUND);
+        return R.fail(ResultCodeEnum.NOT_FOUND);
     }
 
     /**
@@ -106,7 +106,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public R<Void> handleException(Exception e, HttpServletRequest request) {
         log.error("系统异常 [{} {}]", request.getMethod(), request.getRequestURI(), e);
-        return R.fail(ResultCode.SYSTEM_ERROR);
+        return R.fail(ResultCodeEnum.SYSTEM_ERROR);
     }
 
     private static String formatFieldError(FieldError fieldError) {

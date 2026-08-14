@@ -6,11 +6,13 @@
 - 数据准备：Python 3.10 + psycopg2
 
 ## 通用规则
-- 遵循《阿里巴巴 Java 开发手册》命名与分层规范
 - 每次任务只创建/修改我明确指定的文件，禁止重构无关代码
 - 禁止自行新增依赖，需要新依赖时先向我确认
 - 所有代码注释使用中文
 - 新增或修改接口时，同步更新 docs/requirements.md 的接口清单章节
+
+## Java 编码规约
+- 写 Java / SQL / MyBatis 代码前必须阅读 @.claude/rules/java-alibaba.md（阿里巴巴 Java 开发手册·黄山版【强制】级条款），冲突时以该文件为准
 
 ## 后端约束
 - Controller 统一返回 `R<T>`，禁止直接返回实体或 Map

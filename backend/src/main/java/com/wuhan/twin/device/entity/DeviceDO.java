@@ -13,7 +13,8 @@ import lombok.Data;
 /**
  * 设备数据对象，对应 t_device
  *
- * <p>location 为 PostGIS 几何列，不映射为 Java 属性；经纬度由 SQL 侧 ST_X、ST_Y 转换后填入派生字段。</p>
+ * <p>location 为 PostGIS 几何列，不映射为 Java 属性；
+ * 经纬度由 SQL 侧 ST_X、ST_Y 转换后填入派生字段。</p>
  *
  * @author lvfan
  */

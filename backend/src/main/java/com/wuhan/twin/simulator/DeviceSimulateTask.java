@@ -78,7 +78,7 @@ public class DeviceSimulateTask {
         double alarmProbability = appProperties.getSimulator().getAlarmProbability();
 
         List<DeviceMetricsDTO> snapshots = new ArrayList<>(devices.size());
-        List<AlarmCreateDTO> alarms = new ArrayList<>();
+        List<AlarmCreateDTO> alarms = new ArrayList<>(devices.size());
         for (DeviceDO device : devices) {
             Optional<DeviceTypeEnum> typeEnum = DeviceTypeEnum.of(device.getDeviceType());
             if (typeEnum.isEmpty()) {
