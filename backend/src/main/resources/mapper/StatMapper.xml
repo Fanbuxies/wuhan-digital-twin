@@ -6,14 +6,22 @@
         <result column="device_total" property="deviceTotal"/>
         <result column="online_count" property="onlineCount"/>
         <result column="alarm_count" property="alarmCount"/>
+        <result column="facility_total" property="facilityTotal"/>
+        <result column="facility_online_count" property="facilityOnlineCount"/>
+        <result column="facility_alarm_count" property="facilityAlarmCount"/>
     </resultMap>
 
-    <!-- 设备两项计数走同一次扫描；告警数用标量子查询，避免与设备表 join 产生行数放大 -->
+    <!-- 设备两项计数走同一次扫描；其余计数用标量子查询，避免与设备表 join 产生行数放大 -->
     <select id="selectOverview" resultMap="statOverviewMap">
         SELECT
             count(*) AS device_total,
             count(*) FILTER (WHERE d.status = 'ONLINE') AS online_count,
-            (SELECT count(*) FROM t_alarm AS a WHERE a.status = 'PENDING') AS alarm_count
+            (SELECT count(*) FROM t_alarm AS a
+              WHERE a.status = 'PENDING' AND a.object_type = 'DEVICE') AS alarm_count,
+            (SELECT count(*) FROM t_facility AS f) AS facility_total,
+            (SELECT count(*) FROM t_facility AS f WHERE f.status = 'ONLINE') AS facility_online_count,
+            (SELECT count(*) FROM t_alarm AS a
+              WHERE a.status = 'PENDING' AND a.object_type = 'FACILITY') AS facility_alarm_count
         FROM t_device AS d
     </select>
 

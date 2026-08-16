@@ -267,6 +267,18 @@ public final class MetricsGenerator {
         }
 
         /**
+         * 构造采样结果，供设施侧的生成器复用同一结果结构
+         *
+         * @param metrics    指标键值对
+         * @param alarmLevel 告警级别
+         * @param alarmType  告警类型，正常时传 null
+         * @return 采样结果
+         */
+        public static Sample of(Map<String, Object> metrics, Integer alarmLevel, String alarmType) {
+            return new Sample(metrics, alarmLevel, alarmType);
+        }
+
+        /**
          * 本次采样是否命中告警
          *
          * @return 命中返回 true

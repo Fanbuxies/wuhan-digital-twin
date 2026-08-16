@@ -32,6 +32,9 @@ public class StatServiceImpl implements StatService {
             vo.setDeviceTotal(EMPTY_COUNT);
             vo.setOnlineCount(EMPTY_COUNT);
             vo.setAlarmCount(EMPTY_COUNT);
+            vo.setFacilityTotal(EMPTY_COUNT);
+            vo.setFacilityOnlineCount(EMPTY_COUNT);
+            vo.setFacilityAlarmCount(EMPTY_COUNT);
             return vo;
         }
         BeanUtils.copyProperties(overview, vo);

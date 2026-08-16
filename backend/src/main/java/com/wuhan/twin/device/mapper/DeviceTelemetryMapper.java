@@ -21,4 +21,14 @@ public interface DeviceTelemetryMapper {
      * @return 影响行数
      */
     int batchInsert(@Param("list") List<DeviceMetricsDTO> list);
+
+    /**
+     * 按监测对象删除历史遥测，删除设备台账前清理关联数据
+     *
+     * @param deviceId   监测对象主键
+     * @param objectType 监测对象类型：DEVICE / FACILITY
+     * @return 影响行数
+     */
+    int deleteByDeviceId(@Param("deviceId") Long deviceId,
+                         @Param("objectType") String objectType);
 }

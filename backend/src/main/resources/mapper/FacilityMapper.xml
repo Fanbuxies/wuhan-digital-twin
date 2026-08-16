@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuhan.twin.facility.mapper.FacilityMapper">
+
+    <resultMap id="facilityMap" type="com.wuhan.twin.facility.entity.FacilityDO">
+        <id column="id" property="id"/>
+        <result column="facility_code" property="facilityCode"/>
+        <result column="facility_name" property="facilityName"/>
+        <result column="facility_type" property="facilityType"/>
+        <result column="osm_id" property="osmId"/>
+        <result column="road_id" property="roadId"/>
+        <result column="altitude" property="altitude"/>
+        <result column="status" property="status"/>
+        <result column="source" property="source"/>
+        <result column="install_time" property="installTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="lon" property="lon"/>
+        <result column="lat" property="lat"/>
+    </resultMap>
+
+    <select id="selectFacilityList" resultMap="facilityMap">
+        SELECT
+            f.id,
+            f.facility_code,
+            f.facility_name,
+            f.facility_type,
+            f.osm_id,
+            f.road_id,
+            f.altitude,
+            f.status,
+            f.source,
+            f.install_time,
+            f.created_at,
+            ST_X(f.location) AS lon,
+            ST_Y(f.location) AS lat
+        FROM t_facility AS f
+        <where>
+            <if test="facilityType != null">
+                AND f.facility_type = #{facilityType}
+            </if>
+            <if test="west != null">
+                AND ST_Intersects(
+                    f.location,
+                    ST_MakeEnvelope(#{west}, #{south}, #{east}, #{north}, 4326)
+                )
+            </if>
+        </where>
+        ORDER BY f.facility_type, f.id
+    </select>
+
+    <select id="selectOnlineFacilities" resultMap="facilityMap">
+        SELECT
+            f.id,
+            f.facility_type
+        FROM t_facility AS f
+        WHERE f.status = 'ONLINE'
+        ORDER BY f.id
+    </select>
+
+    <!-- 分页由 MyBatis-Plus 拦截器生成 count 与 limit；count 为 0 时拦截器直接返回空列表不再执行本语句 -->
+    <select id="selectFacilityPage" resultMap="facilityMap">
+        SELECT
+            f.id,
+            f.facility_code,
+            f.facility_name,
+            f.facility_type,
+            f.altitude,
+            f.status,
+            ST_X(f.location) AS lon,
+            ST_Y(f.location) AS lat
+        FROM t_facility AS f
+        <where>
+            <if test="keyword != null">
+                AND (f.facility_name ILIKE '%' || #{keyword} || '%'
+                     OR f.facility_code ILIKE '%' || #{keyword} || '%')
+            </if>
+            <if test="facilityType != null">
+                AND f.facility_type = #{facilityType}
+            </if>
+            <if test="status != null">
+                AND f.status = #{status}
+            </if>
+        </where>
+        ORDER BY f.id
+    </select>
+
+</mapper>

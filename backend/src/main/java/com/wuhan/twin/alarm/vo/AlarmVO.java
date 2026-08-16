@@ -18,8 +18,11 @@ public class AlarmVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "设备主键")
+    @Schema(description = "监测对象主键，语义由 objectType 决定")
     private Long deviceId;
+
+    @Schema(description = "监测对象类型：DEVICE 楼内设备 / FACILITY 市政设施")
+    private String objectType;
 
     @Schema(description = "告警类型")
     private String alarmType;

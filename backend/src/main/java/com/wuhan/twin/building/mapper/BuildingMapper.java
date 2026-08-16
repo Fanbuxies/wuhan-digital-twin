@@ -1,6 +1,7 @@
 package com.wuhan.twin.building.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.wuhan.twin.building.entity.BuildingDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -53,4 +54,45 @@ public interface BuildingMapper extends BaseMapper<BuildingDO> {
                      @Param("south") Double south,
                      @Param("east") Double east,
                      @Param("north") Double north);
+
+    /**
+     * 统计建筑总数，供 3D Tiles 模式下状态卡展示
+     *
+     * @return 建筑数
+     */
+    Long countAll();
+
+    /**
+     * 建筑分页查询，附带中心点经纬度。keyword 为 null 表示不限，
+     * buildingType 为 null 表示不限，由 service 层统一去空
+     *
+     * @param page         分页对象，由分页拦截器处理 count 与 limit
+     * @param keyword      关键字，按名称模糊匹配
+     * @param buildingType 建筑类型
+     * @return 当页建筑，仅填充列表所需字段
+     */
+    IPage<BuildingDO> selectBuildingPage(IPage<BuildingDO> page,
+                                         @Param("keyword") String keyword,
+                                         @Param("buildingType") String buildingType);
+
+    /**
+     * 新增建筑，footprint 与 center 在 SQL 侧按中心点构造
+     *
+     * @param building   建筑入参，lon/lat 必填，id 由数据库 bigserial 回填
+     * @param halfExtent footprint 半宽（度），沿中心点向四周扩张
+     * @return 影响行数
+     */
+    int insertBuilding(@Param("building") BuildingDO building,
+                       @Param("halfExtent") double halfExtent);
+
+    /**
+     * 按主键整体更新表单可编辑字段，几何按新中心点重建。
+     * osm_id 与 base_altitude 属数据管线字段，不在此处更新
+     *
+     * @param building   建筑入参，lon/lat 必填
+     * @param halfExtent footprint 半宽（度）
+     * @return 影响行数
+     */
+    int updateBuilding(@Param("building") BuildingDO building,
+                       @Param("halfExtent") double halfExtent);
 }

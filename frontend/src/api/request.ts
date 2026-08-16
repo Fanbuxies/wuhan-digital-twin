@@ -44,3 +44,27 @@ export async function get<T>(url: string, params?: Record<string, unknown>): Pro
   const response = await instance.get<ApiResult<T>>(url, { params })
   return response.data.data
 }
+
+/**
+ * POST 请求，请求体 JSON 序列化
+ */
+export async function post<T>(url: string, data?: unknown): Promise<T> {
+  const response = await instance.post<ApiResult<T>>(url, data)
+  return response.data.data
+}
+
+/**
+ * PUT 请求
+ */
+export async function put<T>(url: string, data?: unknown): Promise<T> {
+  const response = await instance.put<ApiResult<T>>(url, data)
+  return response.data.data
+}
+
+/**
+ * DELETE 请求。命名避开 delete 保留字
+ */
+export async function del<T>(url: string): Promise<T> {
+  const response = await instance.delete<ApiResult<T>>(url)
+  return response.data.data
+}

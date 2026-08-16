@@ -52,4 +52,65 @@
         ORDER BY d.id
     </select>
 
+    <!-- 分页由 MyBatis-Plus 拦截器生成 count 与 limit；count 为 0 时拦截器直接返回空列表不再执行本语句 -->
+    <select id="selectDevicePage" resultMap="deviceMap">
+        SELECT
+            d.id,
+            d.device_code,
+            d.device_name,
+            d.device_type,
+            d.building_id,
+            d.floor,
+            d.altitude,
+            d.status,
+            ST_X(d.location) AS lon,
+            ST_Y(d.location) AS lat
+        FROM t_device AS d
+        <where>
+            <if test="keyword != null">
+                AND (d.device_name ILIKE '%' || #{keyword} || '%'
+                     OR d.device_code ILIKE '%' || #{keyword} || '%')
+            </if>
+            <if test="deviceType != null">
+                AND d.device_type = #{deviceType}
+            </if>
+            <if test="status != null">
+                AND d.status = #{status}
+            </if>
+            <if test="buildingId != null">
+                AND d.building_id = #{buildingId}
+            </if>
+        </where>
+        ORDER BY d.id
+    </select>
+
+    <!-- location 几何由 PostGIS 按点位经纬度构造；install_time 缺省取当前时间 -->
+    <insert id="insertDevice" useGeneratedKeys="true" keyProperty="device.id">
+        INSERT INTO t_device (device_code, device_name, device_type, building_id, floor,
+                              altitude, status, location, install_time)
+        VALUES (#{device.deviceCode},
+                #{device.deviceName},
+                #{device.deviceType},
+                #{device.buildingId},
+                #{device.floor},
+                #{device.altitude},
+                #{device.status},
+                ST_SetSRID(ST_MakePoint(#{device.lon}, #{device.lat}), 4326),
+                COALESCE(#{device.installTime}, now()))
+    </insert>
+
+    <!-- install_time / created_at 保持原值不覆盖 -->
+    <update id="updateDevice">
+        UPDATE t_device
+        SET device_code = #{device.deviceCode},
+            device_name = #{device.deviceName},
+            device_type = #{device.deviceType},
+            building_id = #{device.buildingId},
+            floor = #{device.floor},
+            altitude = #{device.altitude},
+            status = #{device.status},
+            location = ST_SetSRID(ST_MakePoint(#{device.lon}, #{device.lat}), 4326)
+        WHERE id = #{device.id}
+    </update>
+
 </mapper>

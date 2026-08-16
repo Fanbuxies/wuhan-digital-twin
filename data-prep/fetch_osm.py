@@ -9,8 +9,14 @@ OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 )
+# relation["building"] 是带内院的 multipolygon 建筑，只查 way 会漏掉这类大院落综合体
+# 北界与东界扩到 30.625/114.375，纳入临江大道武昌段（至二七长江大桥）沿线楼宇；
+# 临江大道全长延伸到 114.415/30.655 的青山段，再扩会超出后端 geojson-max-features 上限，本轮不取
 OVERPASS_QUERY = """[out:json][timeout:180];
-way["building"](30.540,114.283,30.595,114.345);
+(
+  way["building"](30.540,114.283,30.625,114.375);
+  relation["building"](30.540,114.283,30.625,114.375);
+);
 out geom;"""
 OUTPUT_PATH = Path(__file__).resolve().parent / "output" / "osm_raw.json"
 MAX_ATTEMPTS = 3

@@ -3,11 +3,18 @@
 <mapper namespace="com.wuhan.twin.device.mapper.DeviceTelemetryMapper">
 
     <insert id="batchInsert">
-        INSERT INTO t_device_telemetry (device_id, metrics, ts)
+        INSERT INTO t_device_telemetry (device_id, object_type, metrics, ts)
         VALUES
         <foreach collection="list" item="item" separator=",">
-            (#{item.deviceId}, #{item.metricsJson}::jsonb, #{item.ts})
+            (#{item.deviceId}, #{item.objectType}, #{item.metricsJson}::jsonb, #{item.ts})
         </foreach>
     </insert>
+
+    <!-- 分区表按对象主键删除，跨所有分区扫描，同样带 object_type 限定 -->
+    <delete id="deleteByDeviceId">
+        DELETE FROM t_device_telemetry
+        WHERE object_type = #{objectType}
+          AND device_id = #{deviceId}
+    </delete>
 
 </mapper>

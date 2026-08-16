@@ -3,10 +3,11 @@
 <mapper namespace="com.wuhan.twin.alarm.mapper.AlarmMapper">
 
     <insert id="batchInsert">
-        INSERT INTO t_alarm (device_id, alarm_type, alarm_level, alarm_value, status, occur_time)
+        INSERT INTO t_alarm (device_id, object_type, alarm_type, alarm_level,
+                             alarm_value, status, occur_time)
         VALUES
         <foreach collection="list" item="item" separator=",">
-            (#{item.deviceId}, #{item.alarmType}, #{item.alarmLevel},
+            (#{item.deviceId}, #{item.objectType}, #{item.alarmType}, #{item.alarmLevel},
              #{item.alarmValueJson}::jsonb, 'PENDING', #{item.occurTime})
         </foreach>
     </insert>
@@ -15,6 +16,14 @@
         SELECT DISTINCT a.device_id
         FROM t_alarm AS a
         WHERE a.status = 'PENDING'
+          AND a.object_type = #{objectType}
     </select>
+
+    <!-- 告警表同样以 object_type 区分监测对象类型，删除必须带类型 -->
+    <delete id="deleteByDeviceId">
+        DELETE FROM t_alarm
+        WHERE object_type = #{objectType}
+          AND device_id = #{deviceId}
+    </delete>
 
 </mapper>

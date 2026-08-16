@@ -3,19 +3,22 @@
 <mapper namespace="com.wuhan.twin.device.mapper.DeviceRealtimeMapper">
 
     <resultMap id="realtimeMap" type="com.wuhan.twin.device.entity.DeviceRealtimeDO">
+        <id column="object_type" property="objectType"/>
         <id column="device_id" property="deviceId"/>
         <result column="metrics_json" property="metricsJson"/>
         <result column="alarm_level" property="alarmLevel"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
+    <!-- 冲突目标必须与主键 (object_type, device_id) 一致：设备与设施台账的 id 均从 1 起，单列 device_id 不唯一 -->
     <insert id="batchUpsert">
-        INSERT INTO t_device_realtime (device_id, metrics, alarm_level, update_time)
+        INSERT INTO t_device_realtime (device_id, object_type, metrics, alarm_level, update_time)
         VALUES
         <foreach collection="list" item="item" separator=",">
-            (#{item.deviceId}, #{item.metricsJson}::jsonb, #{item.alarmLevel}, #{item.ts})
+            (#{item.deviceId}, #{item.objectType}, #{item.metricsJson}::jsonb,
+             #{item.alarmLevel}, #{item.ts})
         </foreach>
-        ON CONFLICT (device_id) DO UPDATE SET
+        ON CONFLICT (object_type, device_id) DO UPDATE SET
             metrics = excluded.metrics,
             alarm_level = excluded.alarm_level,
             update_time = excluded.update_time
@@ -24,11 +27,20 @@
     <select id="selectByDeviceId" resultMap="realtimeMap">
         SELECT
             r.device_id,
+            r.object_type,
             r.metrics::text AS metrics_json,
             r.alarm_level,
             r.update_time
         FROM t_device_realtime AS r
-        WHERE r.device_id = #{deviceId}
+        WHERE r.object_type = #{objectType}
+          AND r.device_id = #{deviceId}
     </select>
+
+    <!-- 主键是 (object_type, device_id)，删除必须带类型，避免误删同 id 的设施行 -->
+    <delete id="deleteByDeviceId">
+        DELETE FROM t_device_realtime
+        WHERE object_type = #{objectType}
+          AND device_id = #{deviceId}
+    </delete>
 
 </mapper>

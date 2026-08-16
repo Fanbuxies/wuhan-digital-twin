@@ -116,5 +116,16 @@ public class AppProperties {
          * 每多少次调度落一次历史遥测。3 秒一次调度，5 即 15 秒一批，避免历史表暴涨
          */
         private Integer telemetryTickInterval = 5;
+
+        /**
+         * 市政设施的调度周期，单位毫秒。设施数量约为设备的 1.5 倍，
+         * 节奏放到设备的两倍以减半写库压力
+         */
+        private Long facilityFixedRate = 6000L;
+
+        /**
+         * 单设施单次调度的告警触发概率。室外设施故障率低于楼内设备，故取设备的一半
+         */
+        private Double facilityAlarmProbability = 0.001D;
     }
 }
