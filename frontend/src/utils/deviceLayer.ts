@@ -13,7 +13,7 @@ import {
 } from 'cesium'
 
 import type { DeviceItem } from '@/api/device'
-import { getDeviceIcon } from '@/utils/deviceIcon'
+import { getDeviceIcon, getDeviceSelectedIcon } from '@/utils/deviceIcon'
 import { getViewer } from '@/utils/viewer'
 
 /** 拾取标识的种类，用于与建筑分支区分 */
@@ -64,6 +64,10 @@ const labelMap = new Map<number, Label>()
 
 /** 设备当前状态缓存，用于告警推送时算新图标 */
 const deviceStateMap = new Map<number, { deviceType: string; status: string }>()
+
+/** 当前高亮的设备 billboard 与其被覆盖前的图标，清除时原样还原 */
+let highlightedBillboard: Billboard | null = null
+let previousDeviceImage: string | null = null
 
 /**
  * 载入设备点位图层。重复调用先清空旧集合，避免图元重复叠加
@@ -124,7 +128,8 @@ export function loadDeviceLayer(devices: DeviceItem[]): void {
 }
 
 /**
- * 按告警级别刷新单台设备图标，仅替换 image 属性
+ * 按告警级别刷新单台设备图标，仅替换 image 属性。
+ * 正在高亮的设备保持选中态图标，避免推送覆盖选中视觉
  *
  * @param deviceId 设备主键
  * @param alarmLevel 告警级别，0 正常 1 预警 2 告警
@@ -135,10 +140,42 @@ export function updateDeviceState(deviceId: number, alarmLevel: number): void {
   if (billboard === undefined || state === undefined) {
     return
   }
-  const icon = getDeviceIcon(state.deviceType, state.status, alarmLevel)
+  const icon =
+    billboard === highlightedBillboard
+      ? getDeviceSelectedIcon(state.deviceType, state.status, alarmLevel)
+      : getDeviceIcon(state.deviceType, state.status, alarmLevel)
   if (billboard.image !== icon) {
     billboard.image = icon
   }
+}
+
+/**
+ * 高亮指定设备：仅换 image 为选中态图标，不重建图元
+ */
+export function highlightDevice(deviceId: number): void {
+  clearDeviceHighlight()
+  const billboard = billboardMap.get(deviceId)
+  const state = deviceStateMap.get(deviceId)
+  if (billboard === undefined || state === undefined) {
+    return
+  }
+  previousDeviceImage = String(billboard.image)
+  billboard.image = getDeviceSelectedIcon(state.deviceType, state.status, 0)
+  highlightedBillboard = billboard
+}
+
+/**
+ * 还原设备高亮前的图标
+ */
+export function clearDeviceHighlight(): void {
+  if (highlightedBillboard === null) {
+    return
+  }
+  if (previousDeviceImage !== null) {
+    highlightedBillboard.image = previousDeviceImage
+  }
+  highlightedBillboard = null
+  previousDeviceImage = null
 }
 
 /**
@@ -157,6 +194,8 @@ export function removeDeviceLayer(): void {
   billboardMap.clear()
   labelMap.clear()
   deviceStateMap.clear()
+  highlightedBillboard = null
+  previousDeviceImage = null
 }
 
 /**

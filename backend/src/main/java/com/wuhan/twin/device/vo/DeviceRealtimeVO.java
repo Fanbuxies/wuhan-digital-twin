@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
- * 设备实时状态视图对象，同时作为 WebSocket DEVICE_UPDATE 的推送体元素
+ * 监测对象实时状态视图对象，同时作为 WebSocket DEVICE_UPDATE / FACILITY_UPDATE 的推送体元素
  *
  * @author lvfan
  */
@@ -18,8 +18,11 @@ public class DeviceRealtimeVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "设备主键")
+    @Schema(description = "监测对象主键，语义由 objectType 决定")
     private Long deviceId;
+
+    @Schema(description = "监测对象类型：DEVICE 楼内设备 / FACILITY 市政设施")
+    private String objectType;
 
     @Schema(description = "指标键值对，字段随设备类型而异")
     private JsonNode metrics;

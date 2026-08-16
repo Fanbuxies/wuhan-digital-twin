@@ -23,8 +23,20 @@ __pycache__/
 # 数据准备中间产物
 data-prep/output/
 
+# pg2b3dm 生成的 3D Tiles 二进制切片
+frontend/public/tiles/
+
 # 后端日志
 logs/
 
 # Claude Code 本机权限设置
 .claude/settings.local.json
+
+# 本地回收站，删除前暂存的文件
+.trash/
+
+# IntelliJ 编译输出，与 backend/target 重复
+out/
+
+# Claude Code 会话临时产物（截图、浏览器 profile、调试脚本）
+.claude/tmp/

@@ -37,12 +37,16 @@ CREATE INDEX IF NOT EXISTS idx_t_device_location ON t_device USING GIST (locatio
 
 CREATE INDEX IF NOT EXISTS idx_t_device_type_status ON t_device (device_type, status);
 
--- 实时状态，一设备一行，由模拟器 UPSERT
+-- 实时状态，一个监测对象一行，由模拟器 UPSERT。
+-- device_id 为监测对象主键，语义由 object_type 决定：DEVICE 指向 t_device.id，FACILITY 指向 t_facility.id。
+-- 两张台账表的 id 都是从 1 开始的 bigserial，故主键必须带 object_type 才不撞键
 CREATE TABLE IF NOT EXISTS t_device_realtime (
-    device_id bigint PRIMARY KEY,
+    device_id bigint NOT NULL,
+    object_type varchar(16) NOT NULL DEFAULT 'DEVICE' CHECK (object_type IN ('DEVICE', 'FACILITY')),
     metrics jsonb NOT NULL,
     alarm_level smallint NOT NULL DEFAULT 0 CHECK (alarm_level IN (0, 1, 2)),
-    update_time timestamptz DEFAULT now()
+    update_time timestamptz DEFAULT now(),
+    PRIMARY KEY (object_type, device_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_t_device_realtime_alarm_level ON t_device_realtime (alarm_level);
@@ -51,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_t_device_realtime_alarm_level ON t_device_realtim
 CREATE TABLE IF NOT EXISTS t_device_telemetry (
     id bigserial,
     device_id bigint NOT NULL,
+    object_type varchar(16) NOT NULL DEFAULT 'DEVICE' CHECK (object_type IN ('DEVICE', 'FACILITY')),
     metrics jsonb,
     ts timestamptz NOT NULL,
     PRIMARY KEY (id, ts)
@@ -65,6 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_t_device_telemetry_device_ts ON t_device_telemetr
 CREATE TABLE IF NOT EXISTS t_alarm (
     id bigserial PRIMARY KEY,
     device_id bigint NOT NULL,
+    object_type varchar(16) NOT NULL DEFAULT 'DEVICE' CHECK (object_type IN ('DEVICE', 'FACILITY')),
     alarm_type varchar(32) NOT NULL,
     alarm_level smallint NOT NULL DEFAULT 0 CHECK (alarm_level IN (0, 1, 2)),
     alarm_value jsonb,
@@ -77,3 +83,40 @@ CREATE TABLE IF NOT EXISTS t_alarm (
 CREATE INDEX IF NOT EXISTS idx_t_alarm_status_occur_time ON t_alarm (status, occur_time DESC);
 
 CREATE INDEX IF NOT EXISTS idx_t_alarm_device_id ON t_alarm (device_id);
+
+-- 道路中心线，仅用于沿路插值生成路灯/井盖点位，不对外提供接口
+CREATE TABLE IF NOT EXISTS t_road (
+    id bigserial PRIMARY KEY,
+    osm_id bigint NOT NULL UNIQUE,
+    name varchar(128),
+    road_type varchar(32) NOT NULL,
+    geom geometry(LineString, 4326) NOT NULL,
+    length_m numeric(10,2) NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_t_road_geom ON t_road USING GIST (geom);
+
+-- 室外市政设施台账。与 t_device 分表：设施不属于任何建筑，无楼层概念，
+-- 点位在街面而非楼内，故不复用 t_device 的 building_id NOT NULL 约束
+CREATE TABLE IF NOT EXISTS t_facility (
+    id bigserial PRIMARY KEY,
+    facility_code varchar(64) NOT NULL UNIQUE,
+    facility_name varchar(128),
+    facility_type varchar(32) NOT NULL
+        CHECK (facility_type IN ('CHARGING_PILE', 'STREET_LAMP', 'MANHOLE', 'BUS_STOP')),
+    -- OSM 直取的点有值，沿路插值生成的为 null
+    osm_id bigint,
+    -- 插值生成的点记录所属道路，OSM 直取的为 null。不建外键，引用完整性由数据脚本保证
+    road_id bigint,
+    location geometry(Point, 4326) NOT NULL,
+    altitude numeric(6,2) DEFAULT 0,
+    status varchar(16) NOT NULL DEFAULT 'ONLINE' CHECK (status IN ('ONLINE', 'OFFLINE', 'FAULT')),
+    source varchar(16) NOT NULL CHECK (source IN ('osm', 'road_interp')),
+    install_time timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_t_facility_location ON t_facility USING GIST (location);
+
+CREATE INDEX IF NOT EXISTS idx_t_facility_type_status ON t_facility (facility_type, status);

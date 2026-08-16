@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wuhan.twin.common.enums.ObjectTypeEnum;
 import com.wuhan.twin.common.exception.BizException;
 import com.wuhan.twin.common.result.ResultCodeEnum;
 import com.wuhan.twin.device.dto.DeviceMetricsDTO;
@@ -23,7 +24,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
- * 设备实时状态服务实现
+ * 监测对象实时状态服务实现，设备与市政设施共用
  *
  * @author lvfan
  */
@@ -51,13 +52,15 @@ public class DeviceRealtimeServiceImpl implements DeviceRealtimeService {
     }
 
     @Override
-    public DeviceRealtimeVO getRealtime(Long deviceId) {
-        DeviceRealtimeDO realtime = deviceRealtimeMapper.selectByDeviceId(deviceId);
+    public DeviceRealtimeVO getRealtime(Long objectId, ObjectTypeEnum objectType) {
+        DeviceRealtimeDO realtime = deviceRealtimeMapper.selectByDeviceId(objectId, objectType.name());
         if (realtime == null) {
-            throw new BizException(ResultCodeEnum.NOT_FOUND, "设备暂无实时数据：" + deviceId);
+            throw new BizException(ResultCodeEnum.NOT_FOUND,
+                    objectType.getLabel() + "暂无实时数据：" + objectId);
         }
         DeviceRealtimeVO vo = new DeviceRealtimeVO();
         vo.setDeviceId(realtime.getDeviceId());
+        vo.setObjectType(realtime.getObjectType());
         vo.setMetrics(parseJson(realtime.getMetricsJson()));
         vo.setAlarmLevel(realtime.getAlarmLevel());
         vo.setTs(realtime.getUpdateTime());
@@ -75,6 +78,7 @@ public class DeviceRealtimeServiceImpl implements DeviceRealtimeService {
     private DeviceRealtimeVO toVo(DeviceMetricsDTO snapshot) {
         DeviceRealtimeVO vo = new DeviceRealtimeVO();
         vo.setDeviceId(snapshot.getDeviceId());
+        vo.setObjectType(snapshot.getObjectType());
         vo.setMetrics(parseJson(snapshot.getMetricsJson()));
         vo.setAlarmLevel(snapshot.getAlarmLevel());
         vo.setTs(snapshot.getTs());

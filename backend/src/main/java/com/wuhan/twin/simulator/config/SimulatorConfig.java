@@ -5,7 +5,9 @@ import com.wuhan.twin.alarm.service.AlarmService;
 import com.wuhan.twin.common.config.AppProperties;
 import com.wuhan.twin.device.mapper.DeviceMapper;
 import com.wuhan.twin.device.service.DeviceRealtimeService;
+import com.wuhan.twin.facility.mapper.FacilityMapper;
 import com.wuhan.twin.simulator.DeviceSimulateTask;
+import com.wuhan.twin.simulator.FacilitySimulateTask;
 import com.wuhan.twin.ws.RealtimeWebSocketHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +33,17 @@ public class SimulatorConfig {
                                                  AppProperties appProperties,
                                                  ObjectMapper objectMapper) {
         return new DeviceSimulateTask(deviceMapper, deviceRealtimeService, alarmService,
+                realtimeWebSocketHandler, appProperties, objectMapper);
+    }
+
+    @Bean
+    public FacilitySimulateTask facilitySimulateTask(FacilityMapper facilityMapper,
+                                                    DeviceRealtimeService deviceRealtimeService,
+                                                    AlarmService alarmService,
+                                                    RealtimeWebSocketHandler realtimeWebSocketHandler,
+                                                    AppProperties appProperties,
+                                                    ObjectMapper objectMapper) {
+        return new FacilitySimulateTask(facilityMapper, deviceRealtimeService, alarmService,
                 realtimeWebSocketHandler, appProperties, objectMapper);
     }
 }

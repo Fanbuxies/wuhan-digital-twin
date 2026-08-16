@@ -1,17 +1,31 @@
 package com.wuhan.twin.building.service.impl;
 
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.wuhan.twin.building.dto.BuildingPageQuery;
+import com.wuhan.twin.building.dto.BuildingSaveDTO;
 import com.wuhan.twin.building.entity.BuildingDO;
 import com.wuhan.twin.building.mapper.BuildingMapper;
 import com.wuhan.twin.building.service.BuildingService;
 import com.wuhan.twin.building.vo.BuildingDetailVO;
+import com.wuhan.twin.building.vo.BuildingPageVO;
 import com.wuhan.twin.building.vo.TilesetInfoVO;
 import com.wuhan.twin.common.config.AppProperties;
 import com.wuhan.twin.common.exception.BizException;
+import com.wuhan.twin.common.result.PageResult;
 import com.wuhan.twin.common.result.ResultCodeEnum;
+import com.wuhan.twin.common.util.BboxUtils;
+import com.wuhan.twin.device.entity.DeviceDO;
+import com.wuhan.twin.device.mapper.DeviceMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -31,21 +45,20 @@ import org.springframework.util.StringUtils;
 public class BuildingServiceImpl implements BuildingService {
 
     /**
-     * bbox 参数的分段数：west,south,east,north
+     * 管理端新增建筑的 footprint 半宽（度）。武汉纬度下约合 19 米，
+     * 生成的近似矩形约 20 米见方，待接入真实测绘轮廓后再替换
      */
-    private static final int BBOX_PART_COUNT = 4;
+    private static final double FOOTPRINT_HALF_EXTENT = 0.0001;
 
-    private static final String BBOX_SEPARATOR = ",";
-
-    private static final double LON_MIN = -180.0D;
-
-    private static final double LON_MAX = 180.0D;
-
-    private static final double LAT_MIN = -90.0D;
-
-    private static final double LAT_MAX = 90.0D;
+    /**
+     * 高度来源合法取值，与 t_building.height_source 的 CHECK 约束一致
+     */
+    private static final Set<String> HEIGHT_SOURCES =
+            Set.of("osm_height", "osm_levels", "default_by_type");
 
     private final BuildingMapper buildingMapper;
+
+    private final DeviceMapper deviceMapper;
 
     private final AppProperties appProperties;
 
@@ -59,6 +72,7 @@ public class BuildingServiceImpl implements BuildingService {
         TilesetInfoVO vo = new TilesetInfoVO();
         // 配置留空时统一对外返回 null，前端据此走 GeoJSON 降级
         vo.setTilesetUrl(StringUtils.hasText(tileset.getUrl()) ? tileset.getUrl() : null);
+        vo.setBuildingCount(buildingMapper.countAll());
         vo.setCamera(camera);
         return vo;
     }
@@ -77,7 +91,7 @@ public class BuildingServiceImpl implements BuildingService {
 
     @Override
     public JsonNode getGeoJson(String bbox) {
-        Bbox range = parseBbox(bbox);
+        BboxUtils.Bbox range = BboxUtils.parse(bbox);
         Integer maxFeatures = appProperties.getBuilding().getGeojsonMaxFeatures();
         Long total = buildingMapper.countByBbox(range.west(), range.south(), range.east(), range.north());
         if (total != null && total == 0) {
@@ -92,6 +106,87 @@ public class BuildingServiceImpl implements BuildingService {
         return parseJson(geoJson);
     }
 
+    @Override
+    public PageResult<BuildingPageVO> pageBuildings(BuildingPageQuery query) {
+        Page<BuildingDO> page = new Page<>(query.getCurrent(), query.getSize());
+        IPage<BuildingDO> result = buildingMapper.selectBuildingPage(
+                page, trimToNull(query.getKeyword()), trimToNull(query.getBuildingType()));
+        List<BuildingPageVO> records = result.getRecords().stream()
+                .map(BuildingServiceImpl::toPageVo)
+                .collect(Collectors.toList());
+        return PageResult.of(records, result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
+    private static BuildingPageVO toPageVo(BuildingDO building) {
+        BuildingPageVO vo = new BuildingPageVO();
+        BeanUtils.copyProperties(building, vo);
+        return vo;
+    }
+
+    @Override
+    public Long createBuilding(BuildingSaveDTO dto) {
+        normalizeHeightSource(dto.getHeightSource());
+        BuildingDO building = new BuildingDO();
+        BeanUtils.copyProperties(dto, building);
+        // BeanUtils 不做 BigDecimal 到 Double 的转换，lon/lat 手动拷贝
+        building.setLon(dto.getLon().doubleValue());
+        building.setLat(dto.getLat().doubleValue());
+        buildingMapper.insertBuilding(building, FOOTPRINT_HALF_EXTENT);
+        return building.getId();
+    }
+
+    @Override
+    public void updateBuilding(Long id, BuildingSaveDTO dto) {
+        requireBuildingExists(id);
+        normalizeHeightSource(dto.getHeightSource());
+        BuildingDO building = new BuildingDO();
+        BeanUtils.copyProperties(dto, building);
+        building.setId(id);
+        building.setLon(dto.getLon().doubleValue());
+        building.setLat(dto.getLat().doubleValue());
+        if (buildingMapper.updateBuilding(building, FOOTPRINT_HALF_EXTENT) == 0) {
+            // 存在性检查与更新之间的并发删除窗口极小，防御性兜底
+            throw new BizException(ResultCodeEnum.NOT_FOUND, "建筑不存在：" + id);
+        }
+    }
+
+    @Override
+    public void deleteBuilding(Long id) {
+        requireBuildingExists(id);
+        Long deviceCount = deviceMapper.selectCount(
+                Wrappers.<DeviceDO>lambdaQuery().eq(DeviceDO::getBuildingId, id));
+        if (deviceCount != null && deviceCount > 0) {
+            throw new BizException("该建筑下存在 " + deviceCount + " 台设备，无法删除");
+        }
+        buildingMapper.deleteById(id);
+    }
+
+    /**
+     * 建筑存在性检查，不存在抛 404
+     */
+    private void requireBuildingExists(Long id) {
+        if (buildingMapper.selectById(id) == null) {
+            throw new BizException(ResultCodeEnum.NOT_FOUND, "建筑不存在：" + id);
+        }
+    }
+
+    /**
+     * 校验高度来源取值，非法时抛出参数错误
+     */
+    private static void normalizeHeightSource(String heightSource) {
+        if (!HEIGHT_SOURCES.contains(heightSource)) {
+            String supported = String.join("/", HEIGHT_SOURCES);
+            throw new BizException(ResultCodeEnum.PARAM_ERROR, "高度来源不支持，可选值：" + supported);
+        }
+    }
+
+    /**
+     * 空白关键字与类型统一归一为 null，交给 SQL 的 if 判断
+     */
+    private static String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
     /**
      * 范围内无建筑时直接返回空 FeatureCollection，不再查库拼装
      */
@@ -100,40 +195,6 @@ public class BuildingServiceImpl implements BuildingService {
         root.put("type", "FeatureCollection");
         root.putArray("features");
         return root;
-    }
-
-    /**
-     * 解析并校验 bbox，为空时返回四个 null 表示不限范围
-     */
-    private Bbox parseBbox(String bbox) {
-        if (!StringUtils.hasText(bbox)) {
-            return new Bbox(null, null, null, null);
-        }
-        String[] parts = bbox.split(BBOX_SEPARATOR);
-        if (parts.length != BBOX_PART_COUNT) {
-            throw new BizException(ResultCodeEnum.PARAM_ERROR, "bbox 需为 west,south,east,north 四个数值");
-        }
-        double[] values = new double[BBOX_PART_COUNT];
-        for (int i = 0; i < BBOX_PART_COUNT; i++) {
-            try {
-                values[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException e) {
-                throw new BizException(ResultCodeEnum.PARAM_ERROR, "bbox 含非数值内容：" + parts[i].trim());
-            }
-        }
-        double west = values[0];
-        double south = values[1];
-        double east = values[2];
-        double north = values[3];
-        boolean lonInRange = west >= LON_MIN && west <= LON_MAX && east >= LON_MIN && east <= LON_MAX;
-        boolean latInRange = south >= LAT_MIN && south <= LAT_MAX && north >= LAT_MIN && north <= LAT_MAX;
-        if (!lonInRange || !latInRange) {
-            throw new BizException(ResultCodeEnum.PARAM_ERROR, "bbox 经纬度超出取值范围");
-        }
-        if (west >= east || south >= north) {
-            throw new BizException(ResultCodeEnum.PARAM_ERROR, "bbox 需满足 west < east 且 south < north");
-        }
-        return new Bbox(west, south, east, north);
     }
 
     /**

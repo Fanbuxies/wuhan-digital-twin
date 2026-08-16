@@ -20,6 +20,9 @@ public class TilesetInfoVO implements Serializable {
             + "前端改用 GeoJSON 拉伸白模")
     private String tilesetUrl;
 
+    @Schema(description = "建筑总数，3D Tiles 模式下状态卡没有可本地统计的要素数，由后端下发")
+    private Long buildingCount;
+
     @Schema(description = "初始相机参数")
     private CameraVO camera;
 

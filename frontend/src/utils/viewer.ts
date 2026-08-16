@@ -1,4 +1,5 @@
 import {
+  Cartesian3,
   ImageryLayer,
   OpenStreetMapImageryProvider,
   ScreenSpaceEventHandler,
@@ -63,6 +64,16 @@ export function getEventHandler(): ScreenSpaceEventHandler {
     eventHandler = new ScreenSpaceEventHandler(getViewer().scene.canvas)
   }
   return eventHandler
+}
+
+/**
+ * 平滑飞行到目标经纬度上方指定高度，保持当前相机朝向
+ */
+export function flyToDestination(lon: number, lat: number, height: number, duration: number): void {
+  getViewer().camera.flyTo({
+    destination: Cartesian3.fromDegrees(lon, lat, height),
+    duration
+  })
 }
 
 /**

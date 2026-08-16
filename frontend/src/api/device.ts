@@ -15,9 +15,13 @@ export interface DeviceItem {
   lat: number
 }
 
+/** 监测对象类型，与后端 ObjectTypeEnum 一致；deviceId 的语义由它决定 */
+export type ObjectType = 'DEVICE' | 'FACILITY'
+
 /** 设备实时值，与 DeviceRealtimeVO 对齐，metrics 键随设备类型而变 */
 export interface DeviceRealtime {
   deviceId: number
+  objectType: ObjectType
   metrics: Record<string, number>
   alarmLevel: number
   ts: string
@@ -26,6 +30,7 @@ export interface DeviceRealtime {
 /** 新增告警推送体，与 AlarmVO 对齐 */
 export interface AlarmMessage {
   deviceId: number
+  objectType: ObjectType
   alarmType: string
   alarmLevel: number
   alarmValue: Record<string, number>

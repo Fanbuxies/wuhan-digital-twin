@@ -9,8 +9,8 @@ import {
 
 import type { BuildingFeatureCollection, BuildingFeatureProperties } from '@/api/building'
 
-/** 按高度分段着色，最后一段兜底所有超高建筑 */
-const HEIGHT_COLOR_STOPS: ReadonlyArray<{ maxHeight: number; cssColor: string }> = [
+/** 按高度分段着色，最后一段兜底所有超高建筑。tileset 图层复用同一套色板 */
+export const HEIGHT_COLOR_STOPS: ReadonlyArray<{ maxHeight: number; cssColor: string }> = [
   { maxHeight: 12, cssColor: '#d8e3ee' },
   { maxHeight: 24, cssColor: '#b8cde0' },
   { maxHeight: 40, cssColor: '#93b2cf' },
@@ -18,8 +18,8 @@ const HEIGHT_COLOR_STOPS: ReadonlyArray<{ maxHeight: number; cssColor: string }>
   { maxHeight: Number.POSITIVE_INFINITY, cssColor: '#4a6f9c' }
 ]
 
-/** 白模半透明度，略透以便看清叠压关系 */
-const BUILDING_ALPHA = 0.92
+/** 白模半透明度，略透以便看清叠压关系。tileset 图层保持一致 */
+export const BUILDING_ALPHA = 0.92
 
 /** 选中高亮色 */
 const HIGHLIGHT_COLOR = '#ffb300'
@@ -37,9 +37,9 @@ const originalColorMap = new Map<string, Color>()
 let highlightedEntity: Entity | null = null
 
 /**
- * 按高度取分段颜色
+ * 按高度取分段颜色。tileset 图层还原高亮时复用同一套色板
  */
-function pickColorByHeight(height: number): Color {
+export function pickColorByHeight(height: number): Color {
   const stop = HEIGHT_COLOR_STOPS.find((item) => height <= item.maxHeight)
   const cssColor =
     stop === undefined ? HEIGHT_COLOR_STOPS[HEIGHT_COLOR_STOPS.length - 1].cssColor : stop.cssColor

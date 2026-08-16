@@ -79,4 +79,60 @@
         </where>
     </select>
 
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT count(*)
+        FROM t_building AS b
+    </select>
+
+    <!-- 分页由 MyBatis-Plus 拦截器生成 count 与 limit；count 为 0 时拦截器直接返回空列表不再执行本语句 -->
+    <select id="selectBuildingPage" resultMap="buildingDetailMap">
+        SELECT
+            b.id,
+            b.name,
+            b.building_type,
+            b.levels,
+            b.height,
+            b.height_source,
+            ST_X(b.center) AS lon,
+            ST_Y(b.center) AS lat
+        FROM t_building AS b
+        <where>
+            <if test="keyword != null">
+                AND b.name ILIKE '%' || #{keyword} || '%'
+            </if>
+            <if test="buildingType != null">
+                AND b.building_type = #{buildingType}
+            </if>
+        </where>
+        ORDER BY b.id
+    </select>
+
+    <!-- 几何由 PostGIS 构造：footprint 取中心点向四周扩张半个身位的矩形，center 为点位本身。
+         管理端新增的建筑没有真实轮廓，用近似矩形占位，后续接入真实测绘数据再替换 -->
+    <insert id="insertBuilding" useGeneratedKeys="true" keyProperty="building.id">
+        INSERT INTO t_building (name, building_type, levels, height, height_source, footprint, center)
+        VALUES (#{building.name},
+                #{building.buildingType},
+                #{building.levels},
+                #{building.height},
+                #{building.heightSource},
+                ST_MakeEnvelope(#{building.lon} - #{halfExtent}, #{building.lat} - #{halfExtent},
+                                #{building.lon} + #{halfExtent}, #{building.lat} + #{halfExtent}, 4326),
+                ST_SetSRID(ST_MakePoint(#{building.lon}, #{building.lat}), 4326))
+    </insert>
+
+    <!-- osm_id / base_altitude 是数据管线字段，管理端不感知，保持原值不覆盖 -->
+    <update id="updateBuilding">
+        UPDATE t_building
+        SET name = #{building.name},
+            building_type = #{building.buildingType},
+            levels = #{building.levels},
+            height = #{building.height},
+            height_source = #{building.heightSource},
+            footprint = ST_MakeEnvelope(#{building.lon} - #{halfExtent}, #{building.lat} - #{halfExtent},
+                                        #{building.lon} + #{halfExtent}, #{building.lat} + #{halfExtent}, 4326),
+            center = ST_SetSRID(ST_MakePoint(#{building.lon}, #{building.lat}), 4326)
+        WHERE id = #{building.id}
+    </update>
+
 </mapper>

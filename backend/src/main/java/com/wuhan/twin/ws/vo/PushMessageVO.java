@@ -22,6 +22,11 @@ public class PushMessageVO implements Serializable {
     public static final String TYPE_DEVICE_UPDATE = "DEVICE_UPDATE";
 
     /**
+     * 市政设施实时快照批量推送。与设备分开推送，前端两个 store 直接分发，无需在回调里过滤
+     */
+    public static final String TYPE_FACILITY_UPDATE = "FACILITY_UPDATE";
+
+    /**
      * 单条新告警推送
      */
     public static final String TYPE_ALARM_NEW = "ALARM_NEW";
@@ -32,7 +37,7 @@ public class PushMessageVO implements Serializable {
     private String type;
 
     /**
-     * 消息体，DEVICE_UPDATE 为数组，ALARM_NEW 为对象
+     * 消息体，DEVICE_UPDATE 与 FACILITY_UPDATE 为数组，ALARM_NEW 为对象
      */
     private Object data;
 }

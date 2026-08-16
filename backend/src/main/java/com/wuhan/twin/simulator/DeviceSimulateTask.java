@@ -14,6 +14,7 @@ import com.wuhan.twin.alarm.dto.AlarmCreateDTO;
 import com.wuhan.twin.alarm.service.AlarmService;
 import com.wuhan.twin.alarm.vo.AlarmVO;
 import com.wuhan.twin.common.config.AppProperties;
+import com.wuhan.twin.common.enums.ObjectTypeEnum;
 import com.wuhan.twin.device.dto.DeviceMetricsDTO;
 import com.wuhan.twin.device.entity.DeviceDO;
 import com.wuhan.twin.device.enums.DeviceTypeEnum;
@@ -73,7 +74,7 @@ public class DeviceSimulateTask {
             log.warn("无在线设备，模拟器空转");
             return;
         }
-        Set<Long> pendingDeviceIds = alarmService.listPendingDeviceIds();
+        Set<Long> pendingDeviceIds = alarmService.listPendingDeviceIds(ObjectTypeEnum.DEVICE);
         OffsetDateTime now = OffsetDateTime.now();
         double alarmProbability = appProperties.getSimulator().getAlarmProbability();
 
@@ -130,6 +131,7 @@ public class DeviceSimulateTask {
                                                   Integer alarmLevel, OffsetDateTime ts) {
         DeviceMetricsDTO dto = new DeviceMetricsDTO();
         dto.setDeviceId(deviceId);
+        dto.setObjectType(ObjectTypeEnum.DEVICE.name());
         dto.setMetricsJson(metricsJson);
         dto.setAlarmLevel(alarmLevel);
         dto.setTs(ts);
@@ -140,6 +142,7 @@ public class DeviceSimulateTask {
                                              String metricsJson, OffsetDateTime occurTime) {
         AlarmCreateDTO dto = new AlarmCreateDTO();
         dto.setDeviceId(deviceId);
+        dto.setObjectType(ObjectTypeEnum.DEVICE.name());
         dto.setAlarmType(sample.getAlarmType());
         dto.setAlarmLevel(sample.getAlarmLevel());
         dto.setAlarmValueJson(metricsJson);

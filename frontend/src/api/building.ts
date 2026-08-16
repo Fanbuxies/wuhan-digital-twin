@@ -13,6 +13,8 @@ export interface CameraParam {
 export interface TilesetInfo {
   /** 为 null 表示尚未生成 3D Tiles，改用 GeoJSON 拉伸白模 */
   tilesetUrl: string | null
+  /** 建筑总数，状态卡展示用 */
+  buildingCount: number
   camera: CameraParam
 }
 

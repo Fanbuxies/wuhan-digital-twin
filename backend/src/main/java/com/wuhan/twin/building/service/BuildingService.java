@@ -1,8 +1,12 @@
 package com.wuhan.twin.building.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.wuhan.twin.building.dto.BuildingPageQuery;
+import com.wuhan.twin.building.dto.BuildingSaveDTO;
 import com.wuhan.twin.building.vo.BuildingDetailVO;
+import com.wuhan.twin.building.vo.BuildingPageVO;
 import com.wuhan.twin.building.vo.TilesetInfoVO;
+import com.wuhan.twin.common.result.PageResult;
 
 /**
  * 建筑服务
@@ -35,4 +39,38 @@ public interface BuildingService {
      * @throws com.wuhan.twin.common.exception.BizException bbox 格式或取值非法时抛出
      */
     JsonNode getGeoJson(String bbox);
+
+    /**
+     * 建筑分页查询，供管理端列表使用
+     *
+     * @param query 分页与筛选参数
+     * @return 当页建筑，含中心点经纬度
+     */
+    PageResult<BuildingPageVO> pageBuildings(BuildingPageQuery query);
+
+    /**
+     * 新增建筑，footprint 取中心点向四周扩张的近似矩形
+     *
+     * @param dto 建筑入参
+     * @return 新建筑主键
+     * @throws com.wuhan.twin.common.exception.BizException 高度来源非法时抛出
+     */
+    Long createBuilding(BuildingSaveDTO dto);
+
+    /**
+     * 整体更新建筑表单可编辑字段，几何按新中心点重建
+     *
+     * @param id  建筑主键
+     * @param dto 建筑入参
+     * @throws com.wuhan.twin.common.exception.BizException 建筑不存在或高度来源非法时抛出
+     */
+    void updateBuilding(Long id, BuildingSaveDTO dto);
+
+    /**
+     * 删除建筑。建筑下仍有设备时拒绝删除，引用完整性由应用层保证
+     *
+     * @param id 建筑主键
+     * @throws com.wuhan.twin.common.exception.BizException 建筑不存在或仍有关联设备时抛出
+     */
+    void deleteBuilding(Long id);
 }

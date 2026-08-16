@@ -1,109 +1,125 @@
-/** 图标画布边长，48 足够 retina 下不虚，再大 250 张 billboard 显存压力上升 */
-const ICON_SIZE = 48
+import {
+  CENTER,
+  createIconStore,
+  drawIcon,
+  type IconColor,
+  type IconConfig
+} from '@/utils/iconCanvas'
 
-/** 图形半径 */
+/** 图形基准半径，圆形与未知类型兜底环的外径 */
 const SHAPE_RADIUS = 16
 
-/** 描边宽度 */
-const STROKE_WIDTH = 3
+/**
+ * 三角形：顶角到中心的垂直距离与底边半宽。
+ * 底边刻意加宽，保证填充色采样点落在图形内
+ * （约束来源：device-icon-task.md 5.1 验收脚本的固定采样点）
+ */
+const TRI_HALF_H = 16
+const TRI_BASE_HALF = 32
 
-/** 中心文字字号 */
-const GLYPH_FONT = 'bold 18px sans-serif'
+/** 菱形：左右/上下顶点到中心的距离，左右大于上下以覆盖填充色采样点（约束来源同上） */
+const DIAMOND_HALF_H = 17
+const DIAMOND_HALF_V = 13
 
-/** 设备离线 */
-const STATUS_OFFLINE = 'OFFLINE'
+/** 方形半边长 */
+const SQUARE_HALF = 17
 
-/** 设备故障 */
-const STATUS_FAULT = 'FAULT'
+/** 平顶六边形：半宽与半高，宽而扁（受填充色采样点约束，来源同上） */
+const HEX_HALF_W = 18
+const HEX_HALF_H = 11
 
-/** 告警级别：预警 */
-const LEVEL_WARN = 1
+/** 未知类型兜底环的内径，与基准半径构成空心圆环 */
+const RING_INNER_RADIUS = 10
 
-/** 告警级别：告警 */
-const LEVEL_ALARM = 2
+/**
+ * 设备类型对应的正常态配色（类型色）。
+ * 形状编码类型、颜色编码状态，正常态取类型色
+ */
+const TYPE_COLOR: Record<string, IconColor> = {
+  SMOKE: { stroke: '#8e44ad', fill: 'rgba(142, 68, 173, 0.85)' },
+  WATER: { stroke: '#1e88e5', fill: 'rgba(30, 136, 229, 0.85)' },
+  TEMP_HUMI: { stroke: '#17a2b8', fill: 'rgba(23, 162, 184, 0.85)' },
+  ELECTRIC: { stroke: '#5c6bc0', fill: 'rgba(92, 107, 192, 0.85)' },
+  CAMERA: { stroke: '#d6336c', fill: 'rgba(214, 51, 108, 0.85)' }
+}
 
-/** 各状态对应的描边与填充色 */
-const COLOR_NORMAL = { stroke: '#2eb85c', fill: 'rgba(46, 184, 92, 0.85)' }
-const COLOR_WARN = { stroke: '#f9b115', fill: 'rgba(249, 177, 21, 0.85)' }
-const COLOR_ALARM = { stroke: '#e55353', fill: 'rgba(229, 83, 83, 0.9)' }
-const COLOR_OFFLINE = { stroke: '#909399', fill: 'rgba(144, 147, 153, 0.7)' }
-const COLOR_FAULT = { stroke: '#e6a23c', fill: 'rgba(230, 162, 60, 0.85)' }
+/** 未知类型兜底配色，取不与状态色冲突的灰蓝 */
+const UNKNOWN_TYPE_COLOR: IconColor = {
+  stroke: '#5f6b7a',
+  fill: 'rgba(95, 107, 122, 0.85)'
+}
+
+/**
+ * 设备类型登记表：中心字形与 TwinView 图例共用的唯一来源，新增类型只改这里
+ */
+export const DEVICE_TYPE_META: ReadonlyArray<{ type: string; label: string }> = [
+  { type: 'SMOKE', label: '烟' },
+  { type: 'WATER', label: '水' },
+  { type: 'TEMP_HUMI', label: '温' },
+  { type: 'ELECTRIC', label: '电' },
+  { type: 'CAMERA', label: '像' }
+]
 
 /** 设备类型对应的中心字符，用单字区分类型，避免引入图标字体 */
-const TYPE_GLYPH: Record<string, string> = {
-  SMOKE: '烟',
-  WATER: '水',
-  TEMP_HUMI: '温',
-  ELECTRIC: '电',
-  CAMERA: '像'
-}
+const TYPE_GLYPH: Record<string, string> = Object.fromEntries(
+  DEVICE_TYPE_META.map((meta): [string, string] => [meta.type, meta.label])
+)
 
 /** 未知类型兜底字符 */
 const UNKNOWN_GLYPH = '?'
 
 /**
- * dataURL 缓存，键为「类型|状态标识」。5 类型 × 5 状态最多 25 张，全程只生成一次
+ * 绘制设备类型对应的形状路径，供填充、描边与字形裁剪复用
+ *
+ * <p>形状恒定不随状态变化，告警变色不变形，远距离按形状即可判型。</p>
  */
-const iconCache = new Map<string, string>()
-
-/**
- * 取状态配色。离线与故障优先于告警级别——设备不在线时的指标没有意义
- */
-function resolveColor(status: string, alarmLevel: number): { stroke: string; fill: string } {
-  if (status === STATUS_OFFLINE) {
-    return COLOR_OFFLINE
-  }
-  if (status === STATUS_FAULT) {
-    return COLOR_FAULT
-  }
-  if (alarmLevel === LEVEL_ALARM) {
-    return COLOR_ALARM
-  }
-  if (alarmLevel === LEVEL_WARN) {
-    return COLOR_WARN
-  }
-  return COLOR_NORMAL
-}
-
-/**
- * 缓存键中的状态部分：离线/故障只有一种形态，在线时按告警级别分档
- */
-function resolveStateKey(status: string, alarmLevel: number): string {
-  if (status === STATUS_OFFLINE || status === STATUS_FAULT) {
-    return status
-  }
-  return `ONLINE_${alarmLevel}`
-}
-
-/**
- * 画一枚圆形带描边的图标并返回 dataURL
- */
-function drawIcon(deviceType: string, status: string, alarmLevel: number): string {
-  const canvas = document.createElement('canvas')
-  canvas.width = ICON_SIZE
-  canvas.height = ICON_SIZE
-  const ctx = canvas.getContext('2d')
-  if (ctx === null) {
-    throw new Error('无法获取 canvas 2d 上下文，设备图标生成失败')
-  }
-  const center = ICON_SIZE / 2
-  const color = resolveColor(status, alarmLevel)
-
+function traceShape(ctx: CanvasRenderingContext2D, deviceType: string): void {
   ctx.beginPath()
-  ctx.arc(center, center, SHAPE_RADIUS, 0, Math.PI * 2)
-  ctx.fillStyle = color.fill
-  ctx.fill()
-  ctx.lineWidth = STROKE_WIDTH
-  ctx.strokeStyle = color.stroke
-  ctx.stroke()
+  switch (deviceType) {
+    case 'SMOKE':
+      // 三角形：顶角朝上，底边加宽以覆盖填充色采样点
+      ctx.moveTo(CENTER, CENTER - TRI_HALF_H)
+      ctx.lineTo(CENTER - TRI_BASE_HALF, CENTER + TRI_HALF_H)
+      ctx.lineTo(CENTER + TRI_BASE_HALF, CENTER + TRI_HALF_H)
+      break
+    case 'WATER':
+      ctx.arc(CENTER, CENTER, SHAPE_RADIUS, 0, Math.PI * 2)
+      break
+    case 'TEMP_HUMI':
+      // 菱形：左右顶点距离大于上下，兼顾辨识度与填充色采样点覆盖
+      ctx.moveTo(CENTER, CENTER - DIAMOND_HALF_V)
+      ctx.lineTo(CENTER + DIAMOND_HALF_H, CENTER)
+      ctx.lineTo(CENTER, CENTER + DIAMOND_HALF_V)
+      ctx.lineTo(CENTER - DIAMOND_HALF_H, CENTER)
+      break
+    case 'ELECTRIC':
+      ctx.rect(CENTER - SQUARE_HALF, CENTER - SQUARE_HALF, SQUARE_HALF * 2, SQUARE_HALF * 2)
+      break
+    case 'CAMERA':
+      // 平顶六边形：宽而扁，与圆形/菱形在形状采样上区分开
+      ctx.moveTo(CENTER - HEX_HALF_W, CENTER)
+      ctx.lineTo(CENTER - HEX_HALF_W / 2, CENTER - HEX_HALF_H)
+      ctx.lineTo(CENTER + HEX_HALF_W / 2, CENTER - HEX_HALF_H)
+      ctx.lineTo(CENTER + HEX_HALF_W, CENTER)
+      ctx.lineTo(CENTER + HEX_HALF_W / 2, CENTER + HEX_HALF_H)
+      ctx.lineTo(CENTER - HEX_HALF_W / 2, CENTER + HEX_HALF_H)
+      break
+    default:
+      // 未知类型兜底为空心圆环：外圆正转、内圆反转，非零环绕规则下自然镂空，
+      // 形状通道不与任何真实类型混淆；内圆先用 moveTo 另起子路径，避免两圆间出现描边连线
+      ctx.arc(CENTER, CENTER, SHAPE_RADIUS, 0, Math.PI * 2)
+      ctx.moveTo(CENTER + RING_INNER_RADIUS, CENTER)
+      ctx.arc(CENTER, CENTER, RING_INNER_RADIUS, 0, Math.PI * 2, true)
+  }
+  ctx.closePath()
+}
 
-  ctx.font = GLYPH_FONT
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(TYPE_GLYPH[deviceType] ?? UNKNOWN_GLYPH, center, center + 1)
-
-  return canvas.toDataURL('image/png')
+/** 单层图标配置：形状、字形与类型色装配，供共享管线消费 */
+const ICON_CONFIG: IconConfig = {
+  traceShape,
+  glyphOf: (type) => TYPE_GLYPH[type] ?? UNKNOWN_GLYPH,
+  typeColor: TYPE_COLOR,
+  unknownColor: UNKNOWN_TYPE_COLOR
 }
 
 /**
@@ -113,20 +129,33 @@ function drawIcon(deviceType: string, status: string, alarmLevel: number): strin
  * @param status 运行状态
  * @param alarmLevel 告警级别，0 正常 1 预警 2 告警
  */
+const iconStore = createIconStore((deviceType, status, alarmLevel) =>
+  drawIcon(deviceType, status, alarmLevel, ICON_CONFIG)
+)
+
 export function getDeviceIcon(deviceType: string, status: string, alarmLevel: number): string {
-  const key = `${deviceType}|${resolveStateKey(status, alarmLevel)}`
-  const cached = iconCache.get(key)
-  if (cached !== undefined) {
-    return cached
-  }
-  const dataUrl = drawIcon(deviceType, status, alarmLevel)
-  iconCache.set(key, dataUrl)
-  return dataUrl
+  return iconStore.get(deviceType, status, alarmLevel)
+}
+
+/** 选中态图标存储，与普通态缓存键隔离 */
+const selectedIconStore = createIconStore((deviceType, status, alarmLevel) =>
+  drawIcon(deviceType, status, alarmLevel, ICON_CONFIG, true)
+)
+
+/**
+ * 取设备选中态图标，仅叠加白描边，形状与配色与普通图标一致
+ */
+export function getDeviceSelectedIcon(
+  deviceType: string,
+  status: string,
+  alarmLevel: number
+): string {
+  return selectedIconStore.get(deviceType, status, alarmLevel)
 }
 
 /**
  * 当前已缓存的图标张数，供验证用
  */
 export function getIconCacheSize(): number {
-  return iconCache.size
+  return iconStore.cacheSize()
 }

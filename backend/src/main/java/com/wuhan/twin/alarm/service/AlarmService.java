@@ -5,6 +5,7 @@ import java.util.Set;
 
 import com.wuhan.twin.alarm.dto.AlarmCreateDTO;
 import com.wuhan.twin.alarm.vo.AlarmVO;
+import com.wuhan.twin.common.enums.ObjectTypeEnum;
 
 /**
  * 告警服务
@@ -21,11 +22,12 @@ public interface AlarmService {
     void createAlarms(List<AlarmCreateDTO> list);
 
     /**
-     * 查询存在待处理告警的设备主键集合，供模拟器去重
+     * 查询存在待处理告警的监测对象主键集合，供模拟器去重
      *
+     * @param objectType 监测对象类型，设备与设施共用同一张告警表，须显式区分
      * @return 无数据返回空集合
      */
-    Set<Long> listPendingDeviceIds();
+    Set<Long> listPendingDeviceIds(ObjectTypeEnum objectType);
 
     /**
      * 把新增入参转成推送体

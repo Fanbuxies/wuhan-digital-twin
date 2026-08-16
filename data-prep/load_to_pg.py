@@ -25,6 +25,10 @@ DEFAULT_HEIGHTS = {
     "school": Decimal("15"),
 }
 NUMBER_PATTERN = re.compile(r"[-+]?\d+(?:\.\d+)?")
+# OSM 中 way 与 relation 的 id 空间独立，同号会撞 t_building.osm_id 唯一键，relation 一律存负值
+RELATION_ID_SIGN = -1
+# 拼接环时判断两点是否为同一节点的精度，1e-7 度约合 1 厘米
+COORDINATE_PRECISION = 7
 
 
 @dataclass(frozen=True)
@@ -99,16 +103,95 @@ def normalize_coordinates(geometry: object) -> list[list[float]] | None:
     return coordinates if len(coordinates) >= 4 else None
 
 
-def build_row(element: object) -> BuildingRow | None:
-    if not isinstance(element, dict) or element.get("type") != "way":
+def point_key(point: list[float]) -> tuple[float, float]:
+    return (round(point[0], COORDINATE_PRECISION), round(point[1], COORDINATE_PRECISION))
+
+
+def member_points(member: object) -> list[list[float]] | None:
+    if not isinstance(member, dict) or member.get("type") != "way":
         return None
-    coordinates = normalize_coordinates(element.get("geometry"))
+    # multipolygon 用 outer 标外环，type=building 关系用 outline 标建筑轮廓，少数数据 role 留空
+    # inner 内院与 part 建筑部件本轮都不参与，前者不挖洞，后者被 outline 包住
+    if member.get("role") not in ("outer", "outline", "", None):
+        return None
+    geometry = member.get("geometry")
+    if not isinstance(geometry, list) or len(geometry) < 2:
+        return None
+    points = []
+    for point in geometry:
+        if not isinstance(point, dict) or "lon" not in point or "lat" not in point:
+            return None
+        points.append([float(point["lon"]), float(point["lat"])])
+    return points if len(points) >= 2 else None
+
+
+def stitch_rings(segments: list[list[list[float]]]) -> list[list[list[float]]]:
+    """外环可能被切成多段 way，按首尾相接拼成闭合环，拼不上的整段丢弃"""
+    pending = list(segments)
+    rings = []
+    while pending:
+        ring = pending.pop(0)
+        extended = True
+        while point_key(ring[0]) != point_key(ring[-1]) and extended:
+            extended = False
+            for index, segment in enumerate(pending):
+                if point_key(segment[0]) == point_key(ring[-1]):
+                    ring = ring + segment[1:]
+                elif point_key(segment[-1]) == point_key(ring[-1]):
+                    ring = ring + list(reversed(segment))[1:]
+                elif point_key(segment[-1]) == point_key(ring[0]):
+                    ring = segment[:-1] + ring
+                elif point_key(segment[0]) == point_key(ring[0]):
+                    ring = list(reversed(segment))[:-1] + ring
+                else:
+                    continue
+                pending.pop(index)
+                extended = True
+                break
+        if point_key(ring[0]) == point_key(ring[-1]) and len(ring) >= 4:
+            rings.append(ring)
+    return rings
+
+
+def ring_area(ring: list[list[float]]) -> float:
+    """鞋带公式算环面积（平方度），仅用于在多个外环中挑面积最大的那个作为轮廓"""
+    total = 0.0
+    for index in range(len(ring) - 1):
+        current = ring[index]
+        following = ring[index + 1]
+        total += current[0] * following[1] - following[0] * current[1]
+    return abs(total) / 2.0
+
+
+def relation_coordinates(element: dict) -> list[list[float]] | None:
+    members = element.get("members")
+    if not isinstance(members, list):
+        return None
+    segments = [points for member in members if (points := member_points(member)) is not None]
+    rings = stitch_rings(segments)
+    if not rings:
+        return None
+    return max(rings, key=ring_area)
+
+
+def build_row(element: object) -> BuildingRow | None:
+    if not isinstance(element, dict):
+        return None
+    element_type = element.get("type")
+    if element_type == "way":
+        osm_id = int(element["id"])
+        coordinates = normalize_coordinates(element.get("geometry"))
+    elif element_type == "relation":
+        osm_id = RELATION_ID_SIGN * int(element["id"])
+        coordinates = relation_coordinates(element)
+    else:
+        return None
     if coordinates is None:
         return None
     tags = element.get("tags") if isinstance(element.get("tags"), dict) else {}
     height, height_source, levels = derive_height(tags)
     return BuildingRow(
-        osm_id=int(element["id"]),
+        osm_id=osm_id,
         name=tags.get("name"),
         building_type=tags.get("building"),
         levels=levels,
@@ -231,7 +314,9 @@ def main() -> None:
 
     loaded_count = sum(source_counts.values())
     skipped_count = len(elements) - loaded_count
+    relation_count = sum(1 for row in rows if row.osm_id < 0)
     print(f"总要素数：{len(elements)}")
+    print(f"解析出轮廓的 relation 数：{relation_count}")
     print(f"成功入库数：{loaded_count}")
     print(f"跳过数：{skipped_count}")
     for source in ("osm_height", "osm_levels", "default_by_type"):

@@ -15,7 +15,7 @@
     <artifactId>twin-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>twin-backend</name>
-    <description>武汉光谷白模三维底座 + 楼宇物联网监测后端</description>
+    <description>武汉武昌白模三维底座 + 楼宇物联网监测后端</description>
 
     <properties>
         <java.version>17</java.version>

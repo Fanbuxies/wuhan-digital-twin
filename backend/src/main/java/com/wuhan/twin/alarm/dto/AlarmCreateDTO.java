@@ -16,9 +16,14 @@ public class AlarmCreateDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 设备主键
+     * 监测对象主键，语义由 objectType 决定
      */
     private Long deviceId;
+
+    /**
+     * 监测对象类型：DEVICE 楼内设备 / FACILITY 市政设施
+     */
+    private String objectType;
 
     /**
      * 告警类型

@@ -3,8 +3,17 @@
   "configurations": [
     {
       "name": "twin-backend",
-      "runtimeExecutable": "mvn.cmd",
-      "runtimeArgs": ["-B", "-f", "backend/pom.xml", "spring-boot:run"],
+      "runtimeExecutable": "powershell.exe",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:PGPASSWORD = [Environment]::GetEnvironmentVariable('PGPASSWORD','User'); mvn.cmd -B -f backend/pom.xml spring-boot:run"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "twin-backend-attach",
+      "url": "http://localhost:8080",
       "port": 8080
     },
     {

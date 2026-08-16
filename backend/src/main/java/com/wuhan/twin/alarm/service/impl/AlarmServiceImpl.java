@@ -13,6 +13,7 @@ import com.wuhan.twin.alarm.dto.AlarmCreateDTO;
 import com.wuhan.twin.alarm.mapper.AlarmMapper;
 import com.wuhan.twin.alarm.service.AlarmService;
 import com.wuhan.twin.alarm.vo.AlarmVO;
+import com.wuhan.twin.common.enums.ObjectTypeEnum;
 import com.wuhan.twin.common.exception.BizException;
 import com.wuhan.twin.common.result.ResultCodeEnum;
 import lombok.RequiredArgsConstructor;
@@ -49,8 +50,8 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public Set<Long> listPendingDeviceIds() {
-        List<Long> ids = alarmMapper.selectPendingDeviceIds();
+    public Set<Long> listPendingDeviceIds(ObjectTypeEnum objectType) {
+        List<Long> ids = alarmMapper.selectPendingDeviceIds(objectType.name());
         return CollectionUtils.isEmpty(ids) ? Collections.emptySet() : new HashSet<>(ids);
     }
 
@@ -65,6 +66,7 @@ public class AlarmServiceImpl implements AlarmService {
     private AlarmVO toVo(AlarmCreateDTO dto) {
         AlarmVO vo = new AlarmVO();
         vo.setDeviceId(dto.getDeviceId());
+        vo.setObjectType(dto.getObjectType());
         vo.setAlarmType(dto.getAlarmType());
         vo.setAlarmLevel(dto.getAlarmLevel());
         vo.setAlarmValue(parseJson(dto.getAlarmValueJson()));

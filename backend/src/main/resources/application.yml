@@ -32,8 +32,9 @@ springdoc:
 
 app:
   tileset:
-    # 3D Tiles 尚未生成，留空则 tileset-info 返回 null，前端走 GeoJSON 降级
-    url:
+    # 相对路径，由前端 Vite 从 public/tiles/ 同源静态托管；
+    # 留空则 tileset-info 返回 null，前端走 GeoJSON 降级
+    url: /tiles/tileset.json
     # 相机位置是视点而非注视点，视线落在其正北约 height/tan(|pitch|) 处，
     # 故视点压到 bbox 南侧，斜俯视才能框住全域
     camera:
@@ -43,14 +44,19 @@ app:
       heading: 0
       pitch: -40
   building:
-    # GeoJSON 单次返回要素上限，当前全域 2884 栋，留足余量
-    geojson-max-features: 6000
+    # GeoJSON 单次返回要素上限，当前全域 5303 栋，留足余量；
+    # 上限继续抬高会让单次响应超过 10 MB，届时应改走 3D Tiles 而非再调此值
+    geojson-max-features: 12000
   simulator:
     # 关闭后不注册调度线程，实时表停止刷新但接口仍可读历史值
     enabled: true
     # 调度周期，单位毫秒，与 docs 约定的 3 秒推送节奏一致
     fixed-rate: 3000
-    # 单设备单次调度的告警概率，228 台在线设备约每分钟 10 条
+    # 单设备单次调度的告警概率，约 650 台在线设备约每分钟 26 条
     alarm-probability: 0.002
     # 每 5 次调度（15 秒）落一批历史遥测
     telemetry-tick-interval: 5
+    # 市政设施调度周期，比设备慢一倍，设施数量更多但变化更缓
+    facility-fixed-rate: 6000
+    # 单设施单次调度的告警概率，室外设施故障率低于楼内设备
+    facility-alarm-probability: 0.001

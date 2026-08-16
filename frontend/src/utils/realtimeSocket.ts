@@ -2,6 +2,7 @@ import type { AlarmMessage, DeviceRealtime } from '@/api/device'
 
 /** 推送消息类型，与后端 PushMessageVO 常量一致 */
 const TYPE_DEVICE_UPDATE = 'DEVICE_UPDATE'
+const TYPE_FACILITY_UPDATE = 'FACILITY_UPDATE'
 const TYPE_ALARM_NEW = 'ALARM_NEW'
 
 /** 推送端点，走 vite proxy 转发到后端 8080 */
@@ -22,6 +23,7 @@ export type RealtimeStatus = 'CONNECTING' | 'OPEN' | 'CLOSED'
 /** 推送回调 */
 export interface RealtimeHandlers {
   onDeviceUpdate: (list: DeviceRealtime[]) => void
+  onFacilityUpdate: (list: DeviceRealtime[]) => void
   onAlarmNew: (alarm: AlarmMessage) => void
   onStatusChange: (status: RealtimeStatus) => void
 }
@@ -57,6 +59,10 @@ function dispatchMessage(raw: string, handlers: RealtimeHandlers): void {
     const message = JSON.parse(raw) as { type: string; data: unknown }
     if (message.type === TYPE_DEVICE_UPDATE) {
       handlers.onDeviceUpdate(message.data as DeviceRealtime[])
+      return
+    }
+    if (message.type === TYPE_FACILITY_UPDATE) {
+      handlers.onFacilityUpdate(message.data as DeviceRealtime[])
       return
     }
     if (message.type === TYPE_ALARM_NEW) {

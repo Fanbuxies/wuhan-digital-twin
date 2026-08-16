@@ -33,7 +33,27 @@ public enum AlarmTypeEnum {
     /**
      * 视频断流预警
      */
-    STREAM_LOST("视频断流预警");
+    STREAM_LOST("视频断流预警"),
+
+    /**
+     * 充电桩故障
+     */
+    CHARGE_FAULT("充电桩故障"),
+
+    /**
+     * 路灯不亮
+     */
+    LAMP_OFF("路灯不亮"),
+
+    /**
+     * 井盖倾斜
+     */
+    MANHOLE_TILT("井盖倾斜"),
+
+    /**
+     * 站牌离线
+     */
+    BUS_STOP_OFFLINE("站牌离线");
 
     /**
      * 中文名称

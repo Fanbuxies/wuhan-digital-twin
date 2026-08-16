@@ -8,7 +8,14 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 
-BUILDING_LIMIT = 45
+TARGET_DEVICE_TOTAL = 600
+# 分层抽样网格边长（度），约 1.1 公里，保证江滩、昙华林、东南片区都能分到配额
+GRID_SIZE_DEGREES = 0.01
+# 每个网格至少抽 1 栋，最多抽 6 栋，避免建筑密集区把配额全吃掉
+MIN_BUILDINGS_PER_CELL = 1
+MAX_BUILDINGS_PER_CELL = 6
+# 每栋布 5 台基础设备，大体量建筑额外加 1 台，按 5.5 的均值反推建筑配额
+ESTIMATED_DEVICES_PER_BUILDING = 5.5
 LEVEL_HEIGHT = Decimal("3.2")
 RANDOM_SEED = 42
 # ST_GeneratePoints 的固定种子，保证重复执行点位不变
@@ -40,16 +47,32 @@ class DeviceRow:
     point_index: int
 
 
+# 按经纬度网格分层：先给每栋建筑打上所属网格与格内面积排名，配额在 Python 侧按格内建筑数分配
 SELECT_BUILDING_SQL = """
+WITH celled AS (
+    SELECT
+        id,
+        name,
+        levels,
+        height,
+        ST_Area(footprint) AS footprint_area,
+        floor(ST_X(center) / %(grid_size)s)::integer AS cell_x,
+        floor(ST_Y(center) / %(grid_size)s)::integer AS cell_y
+    FROM t_building
+    WHERE center IS NOT NULL
+)
 SELECT
     id,
     name,
     levels,
     height,
-    ST_Area(footprint) AS footprint_area
-FROM t_building
-ORDER BY (name IS NOT NULL) DESC, ST_Area(footprint) DESC, id
-LIMIT %s
+    footprint_area,
+    cell_x,
+    cell_y,
+    row_number() OVER (PARTITION BY cell_x, cell_y ORDER BY footprint_area DESC, id) AS rank_in_cell,
+    count(*) OVER (PARTITION BY cell_x, cell_y) AS cell_building_count
+FROM celled
+ORDER BY cell_x, cell_y, rank_in_cell
 """
 
 # 每栋建筑一次性生成 n 个随机点，按 point_index 取用；几何运算全部留在 PostGIS 侧
@@ -131,6 +154,40 @@ def device_types_for(footprint_area: float) -> tuple[str, ...]:
     return BASE_DEVICE_TYPES
 
 
+def allocate_cell_quotas(
+    cell_counts: dict[tuple[int, int], int],
+    building_budget: int,
+) -> dict[tuple[int, int], int]:
+    """按格内建筑数比例分配建筑配额，再按小数余数从大到小补齐到预算"""
+    total_buildings = sum(cell_counts.values())
+    quotas = {}
+    remainders = []
+    for cell, count in cell_counts.items():
+        exact = count * building_budget / total_buildings
+        quotas[cell] = min(count, MAX_BUILDINGS_PER_CELL, max(MIN_BUILDINGS_PER_CELL, int(exact)))
+        remainders.append((exact - int(exact), cell))
+    remainders.sort(reverse=True)
+
+    progressed = True
+    while sum(quotas.values()) < building_budget and progressed:
+        progressed = False
+        for _, cell in remainders:
+            if sum(quotas.values()) >= building_budget:
+                break
+            if quotas[cell] < min(cell_counts[cell], MAX_BUILDINGS_PER_CELL):
+                quotas[cell] += 1
+                progressed = True
+    return quotas
+
+
+def sample_buildings(candidates: list[tuple]) -> list[tuple]:
+    """candidates 每行为 (id, name, levels, height, area, cell_x, cell_y, rank_in_cell, cell_count)"""
+    cell_counts = {(row[5], row[6]): row[8] for row in candidates}
+    building_budget = max(1, round(TARGET_DEVICE_TOTAL / ESTIMATED_DEVICES_PER_BUILDING))
+    quotas = allocate_cell_quotas(cell_counts, building_budget)
+    return [row[:5] for row in candidates if row[7] <= quotas[(row[5], row[6])]]
+
+
 def build_rows(buildings: list[tuple], generator: random.Random) -> list[DeviceRow]:
     rows = []
     for building_id, building_name, levels, height, footprint_area in buildings:
@@ -174,10 +231,14 @@ def main() -> None:
 
     with psycopg2.connect(**connection_parameters()) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(SELECT_BUILDING_SQL, (BUILDING_LIMIT,))
-            buildings = cursor.fetchall()
-            if not buildings:
+            cursor.execute(SELECT_BUILDING_SQL, {"grid_size": GRID_SIZE_DEGREES})
+            candidates = cursor.fetchall()
+            if not candidates:
                 raise RuntimeError("t_building 无数据，请先执行 load_to_pg.py")
+
+            buildings = sample_buildings(candidates)
+            cell_total = len({(row[5], row[6]) for row in candidates})
+            print(f"候选建筑 {len(candidates)} 栋，覆盖网格 {cell_total} 个，抽中 {len(buildings)} 栋")
 
             rows = build_rows(buildings, generator)
             device_codes = [row.device_code for row in rows]

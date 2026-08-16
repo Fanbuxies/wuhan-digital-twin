@@ -22,6 +22,15 @@ public class StatOverviewVO implements Serializable {
     @Schema(description = "在线设备数")
     private Long onlineCount;
 
-    @Schema(description = "待处理告警数")
+    @Schema(description = "设备待处理告警数")
     private Long alarmCount;
+
+    @Schema(description = "市政设施总数")
+    private Long facilityTotal;
+
+    @Schema(description = "在线市政设施数")
+    private Long facilityOnlineCount;
+
+    @Schema(description = "市政设施待处理告警数")
+    private Long facilityAlarmCount;
 }
