@@ -159,14 +159,57 @@ WebSocket 推送体格式固定：
 与 t_device.id 的取值范围重叠，判别只能靠 objectType。
 
 ## 5. 前端图层职责
-- 建筑层（3D Tiles 就绪后）：Cesium3DTileset + Cesium3DTileStyle，按 ${height} 分色；
-  点选通过 scene.pick 获取 Cesium3DTileFeature，setColor 高亮
+- 建筑层（3D Tiles 就绪后）：Cesium3DTileset + Cesium3DTileStyle，
+  按「用途色相 × 高度明度」双通道分色（8 类 × 3 档共 24 条样式条件，归并表见下）；
+  点选通过 scene.pick 获取 Cesium3DTileFeature，setColor 高亮，
+  取消高亮按同一取色函数还原配色；
+  场景照明用固定方向光与时钟解耦（夜间太阳在地平线下会把白模压黑），
+  tileset.lightColor 显式保持中性，方向光强度 1.2 防过曝，
+  背光面环境亮度底由自定义球谐系数提供（imageBasedLightingFactor 被 Cesium
+  硬校验为 [0,1] 不能放大，环境项改走 sphericalHarmonicCoefficients）；
+  白模全不透明（alpha 1.0）
+- 建筑立面程序化细节（3D Tiles 路径）：Cesium3DTileset.customShader
+  （MODIFY_MATERIAL，只在样式色/高亮色上乘明暗系数，不覆盖配色）。
+  切片无 UV（顶点属性仅 POSITION/NORMAL/_FEATURE_ID_0），贴图路封死，
+  楼层横带、竖向窗格、屋顶区分全部由模型坐标 + 法线在片元着色器程序化生成；
+  楼层数一律 height/3.2 推算（levels 仅 19% 覆盖不可用），
+  楼层线按片元椭球高从各楼楼底起算（抛物面近似与 Cesium 精确大地高毫米级一致），
+  屋顶按法线判定不画窗格并整体略暗；
+  底层约 4 m 按底商整片通透处理（不画竖向窗格，过渡带平滑恢复）；
+  立面样式按用途族区分：商业（commercial/retail/hotel/office/louge/yes;retail）
+  横向幕墙分格（分格周期更宽、玻璃面占比更大、层线更明显），
+  住宅（apartments/house/residential/dormitory/bungalow/appartment）规则小窗
+  （周期更窄、窗柱更宽），其余用途走通用窗格；
+  用途族判定不走 fsInput.metadata——Cesium 1.115 管线不把 b3dm 批表
+  （property table）暴露进 shader（实测编译报 no such field in structure），
+  改为按片元收到的样式色精确匹配（样式色由「用途 × 高度」唯一决定，
+  24 色常量由取色函数派生，与样式同源）；
+  匹配目标须按 PBR 电介质折算：切片 metallic=0，Cesium 的
+  czm_pbrMetallicRoughnessMaterial 输出 diffuse = 样式色 ×(1−f0)×(1−metallic)，
+  电介质 f0=0.04，故片元收到的是样式色 × 0.96（实测 128,191,216 → 123,183,207）；
+  场景 highDynamicRange=false 时 czm_gammaCorrect 为空操作，样式色以原始 sRGB 到达片元，
+  不需要 gamma 解码；被高亮的建筑样式色被高亮色覆盖，
+  立面临时退为通用窗格；
+  GeoJSON 降级路径无 customShader 能力，保持纯色，不做立面图案
 - 建筑层（当前 GeoJSON 降级路径）：GeoJsonDataSource 加载 /api/building/geojson，
   clampToGround 关闭，逐 Feature 设 polygon.height = baseAltitude、
   polygon.extrudedHeight = baseAltitude + height（extrudedHeight 是绝对高程）；
-  按 height 分 5 段配色，outline 关闭（5300 栋逐栋描边会掉帧）；
+  与 tileset 共用同一套「用途 × 高度」取色函数，outline 关闭（5300 栋逐栋描边会掉帧）；
   scene.pick 拿到的是 Entity 而非 Cesium3DTileFeature，
   高亮只能改 polygon.material 颜色并缓存原色以便还原
+- 建筑用途归并表（OSM building 标签 42 种取值归并为 8 类，色相编码用途；
+  明度按高度分 3 档：≤24m 浅 / ≤80m 本色 / >80m 深）：
+
+  | 归并类 | 基色 | OSM 原始值 | 数量 |
+  |---|---|---|---|
+  | 住宅 | #d9b382 | apartments, house, residential, dormitory, bungalow, appartment | 1662 |
+  | 商业 | #4aa3c7 | commercial, retail, hotel, office, louge, yes;retail | 328 |
+  | 教育 | #8e7cc3 | university, school, college, kindergarten, library, museum | 217 |
+  | 医疗 | #d47b9a | hospital, clinic | 39 |
+  | 工业仓储 | #8a8574 | industrial, greenhouse, barn, water_tower | 28 |
+  | 交通市政 | #6b8fa3 | parking, carport, train_station, guardhouse, gatehouse | 42 |
+  | 公共文体 | #5fae94 | public, sports_hall, grandstand, stadium, church, cathedral, theatre, pavilion, community | 49 |
+  | 未分类 | #c2c8ce | yes, roof, ruins, tower | 2938 |
 - 设备层：BillboardCollection + LabelCollection（Primitive API），
   状态变更只改 billboard.image / color，禁止 Entity；
   图标用 canvas 生成 dataURL 并按「设备类型 + 状态」组合缓存（5 类型 × 5 状态最多 25 张），
