@@ -1,4 +1,6 @@
 import {
+  Cartesian2,
+  Cartesian3,
   Cesium3DTileColorBlendMode,
   Cesium3DTileFeature,
   Cesium3DTileStyle,
@@ -7,8 +9,19 @@ import {
   type Cesium3DTile
 } from 'cesium'
 
-import { BUILDING_ALPHA, HEIGHT_COLOR_STOPS, pickColorByHeight } from '@/utils/buildingLayer'
-import { getViewer } from '@/utils/viewer'
+import {
+  BUILDING_ALPHA,
+  BUILDING_CATEGORY_RULES,
+  HEIGHT_LIGHTNESS_LEVELS,
+  pickBuildingColor,
+  pickBuildingCssColor
+} from '@/utils/cesium/buildingLayer'
+import {
+  createFacadeShader,
+  getTilesetSharedRtc,
+  setFacadeShaderRtc
+} from '@/utils/cesium/facadeShader'
+import { getViewer } from '@/utils/cesium/viewer'
 
 /** 选中高亮色，与 GeoJSON 降级路径一致 */
 const HIGHLIGHT_COLOR = '#ffb300'
@@ -22,6 +35,24 @@ const TILE_WAIT_TIMEOUT_MS = 8000
 /** 高亮保持重写间隔：瓦片 refinement 重应用样式色会覆盖 feature.color，需周期重写 */
 const KEEP_ALIVE_INTERVAL_MS = 1000
 
+/** 背光面环境亮度底：imageBasedLightingFactor 被 Cesium 硬校验为 [0,1]（>1 直接抛错），
+ *  环境光改由自定义球谐系数提供——仅 L00 非零即各方向等辐照度。
+ *  czm_sphericalHarmonics 用未归一化单项式基，L00 数值即辐照度本身 */
+const AMBIENT_IRRADIANCE = 0.2
+
+/** 常数环境光球谐系数：L00 为辐照度，其余八项为零 */
+const AMBIENT_SH: ReadonlyArray<Cartesian3> = [
+  new Cartesian3(AMBIENT_IRRADIANCE, AMBIENT_IRRADIANCE, AMBIENT_IRRADIANCE),
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO,
+  Cartesian3.ZERO
+]
+
 /** 当前挂载的建筑 tileset */
 let buildingTileset: Cesium3DTileset | null = null
 
@@ -32,17 +63,22 @@ const highlightedFeatures = new Map<number, Set<Cesium3DTileFeature>>()
 let keepAliveTimer: number | null = null
 
 /**
- * 按高度分段着色生成 tileset 样式，色板与 GeoJSON 降级路径共用
- *
- * <p>条件最后一段用 true 兜底所有超高建筑。</p>
+ * 按「用途色相 × 高度明度」生成 tileset 样式，色板与 GeoJSON 降级路径共用。
+ * 8 类 × 3 档共 24 条条件，类内按高度升序、末档 true 兜底该类超高建筑；
+ * 不设总兜底——标签表外的新类型会落到 Cesium 默认白色，
+ * SQL 验收保证现有 42 种标签全部覆盖
  */
 function buildStyle(): Cesium3DTileStyle {
-  const conditions: Array<[string, string]> = HEIGHT_COLOR_STOPS.map((stop) => [
-    stop.maxHeight === Number.POSITIVE_INFINITY
-      ? 'true'
-      : `\${height} <= ${stop.maxHeight}`,
-    `color("${stop.cssColor}", ${BUILDING_ALPHA})`
-  ])
+  const conditions: Array<[string, string]> = []
+  for (const rule of BUILDING_CATEGORY_RULES) {
+    const typeMatch = rule.types.map((type) => `\${building_type} === '${type}'`).join(' || ')
+    for (const level of HEIGHT_LIGHTNESS_LEVELS) {
+      const heightExpr =
+        level.maxHeight === Number.POSITIVE_INFINITY ? 'true' : `\${height} <= ${level.maxHeight}`
+      const cssColor = pickBuildingCssColor(rule.types[0], level.maxHeight)
+      conditions.push([`(${typeMatch}) && ${heightExpr}`, `color("${cssColor}", ${BUILDING_ALPHA})`])
+    }
+  }
   return new Cesium3DTileStyle({
     color: { conditions }
   })
@@ -58,6 +94,28 @@ export async function loadBuildingTileset(url: string): Promise<Cesium3DTileset>
   // 且 feature.color 直接覆盖材质色，高亮是纯色而非与底色相乘的浑浊色
   tileset.colorBlendMode = Cesium3DTileColorBlendMode.REPLACE
   tileset.style = buildStyle()
+  // 照明强度统一由 scene.light 控制（固定方向光），tileset 侧光照颜色显式保持中性
+  tileset.lightColor = new Cartesian3(1.0, 1.0, 1.0)
+  // IBL 通道全开，背光面的环境亮度底由自定义球谐系数提供（见 AMBIENT_SH）
+  tileset.imageBasedLighting.imageBasedLightingFactor = new Cartesian2(1.0, 1.0)
+  tileset.imageBasedLighting.sphericalHarmonicCoefficients = [...AMBIENT_SH]
+  // 立面程序化细节（楼层横带/窗格/屋顶）：MODIFY_MATERIAL 在样式色上乘明暗，不破坏配色与高亮
+  const facadeShader = createFacadeShader()
+  tileset.customShader = facadeShader
+  const sharedRtc = getTilesetSharedRtc(tileset)
+  if (sharedRtc !== null) {
+    setFacadeShaderRtc(facadeShader, sharedRtc)
+  } else {
+    // 根瓦片变换尚未就绪时等首个内容瓦片加载（毫秒级），避免用占位原点渲染出错位的横带
+    const setOriginOnce = (): void => {
+      const rtc = getTilesetSharedRtc(tileset)
+      if (rtc !== null) {
+        setFacadeShaderRtc(facadeShader, rtc)
+        tileset.tileLoad.removeEventListener(setOriginOnce)
+      }
+    }
+    tileset.tileLoad.addEventListener(setOriginOnce)
+  }
   getViewer().scene.primitives.add(tileset)
   buildingTileset = tileset
   return tileset
@@ -92,14 +150,17 @@ export function highlightBuildingFeature(feature: Cesium3DTileFeature): void {
 
 /**
  * 还原上一次高亮的建筑配色。
- * 样式色在装载时写入批纹理，被高亮覆盖后需按 height 重算同一色板的颜色还原
+ * 样式色在装载时写入批纹理，被高亮覆盖后需按「用途 × 高度」重算同一取色函数的颜色还原
  */
 export function clearTilesetHighlight(): void {
   for (const features of highlightedFeatures.values()) {
     for (const feature of features) {
       try {
         const height = Number(feature.getProperty('height'))
-        feature.color = Number.isFinite(height) ? pickColorByHeight(height) : Color.WHITE
+        const buildingType = feature.getProperty('building_type')
+        feature.color = Number.isFinite(height)
+          ? pickBuildingColor(String(buildingType ?? ''), height)
+          : Color.WHITE
       } catch {
         // 要素已随瓦片卸载销毁，忽略
       }

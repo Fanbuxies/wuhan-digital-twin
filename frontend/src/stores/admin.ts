@@ -148,9 +148,13 @@ export const useAdminStore = defineStore('admin', () => {
 })
 
 /**
- * 空白筛选值归一为 undefined，后端按未传处理
+ * 空白筛选值归一为 undefined，后端按未传处理。
+ * el-select clearable 清空时回填 undefined（Element Plus 单选的清空语义），先兜底再 trim
  */
-function emptyToUndefined(value: string): string | undefined {
+function emptyToUndefined(value: string | null | undefined): string | undefined {
+  if (value === null || value === undefined) {
+    return undefined
+  }
   const trimmed = value.trim()
   return trimmed === '' ? undefined : trimmed
 }

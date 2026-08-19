@@ -3,6 +3,7 @@ import {
   Cartesian2,
   Cartesian3,
   Color,
+  DistanceDisplayCondition,
   HorizontalOrigin,
   LabelCollection,
   LabelStyle,
@@ -14,7 +15,7 @@ import {
 
 import type { DeviceItem } from '@/api/device'
 import { getDeviceIcon, getDeviceSelectedIcon } from '@/utils/deviceIcon'
-import { getViewer } from '@/utils/viewer'
+import { getViewer } from '@/utils/cesium/viewer'
 
 /** 拾取标识的种类，用于与建筑分支区分 */
 const DEVICE_ID_KIND = 'device'
@@ -40,9 +41,23 @@ const ICON_SCALE_NEAR_VALUE = 1
 const ICON_SCALE_FAR = 6000
 const ICON_SCALE_FAR_VALUE = 0.5
 
-/** 标签随距离淡出：1500 m 内全不透明，4000 m 外完全透明。250 个标签常显会糊屏 */
-const LABEL_TRANSLUCENCY_NEAR = 1500
-const LABEL_TRANSLUCENCY_FAR = 4000
+/**
+ * 标签随距离淡出：400 m 内全不透明，1200 m 外完全透明。
+ * 早先 1500/4000 是按 250 台标定的，设备扩到 2000 台后该区间在初始 4200 m 视角下
+ * 会让近千个标签同屏常显，文字互相压盖且拖帧，故整体收紧到能读清的距离再显示
+ */
+const LABEL_TRANSLUCENCY_NEAR = 400
+const LABEL_TRANSLUCENCY_FAR = 1200
+
+/**
+ * 标签显示距离硬上限（米）：超出即完全不参与渲染。
+ * translucencyByDistance 只是把 alpha 降到 0，标签仍会走布局与文字纹理开销；
+ * 2000 台规模下必须再加 distanceDisplayCondition 才能真正把远处标签摘掉
+ */
+const LABEL_VISIBLE_MAX_DISTANCE = 1200
+
+/** 标签显示距离下限，0 表示近处不设限 */
+const LABEL_VISIBLE_MIN_DISTANCE = 0
 
 /** 标签字体 */
 const LABEL_FONT = '12px sans-serif'
@@ -113,6 +128,11 @@ export function loadDeviceLayer(devices: DeviceItem[]): void {
       horizontalOrigin: HorizontalOrigin.CENTER,
       pixelOffset: LABEL_PIXEL_OFFSET,
       disableDepthTestDistance: NO_DEPTH_TEST_DISTANCE,
+      // 远处标签直接不参与渲染，仅靠 translucency 降 alpha 省不掉文字布局开销
+      distanceDisplayCondition: new DistanceDisplayCondition(
+        LABEL_VISIBLE_MIN_DISTANCE,
+        LABEL_VISIBLE_MAX_DISTANCE
+      ),
       translucencyByDistance: new NearFarScalar(
         LABEL_TRANSLUCENCY_NEAR,
         1,

@@ -14,6 +14,7 @@ import { onBeforeUnmount, onMounted, computed, ref } from 'vue'
 import { fetchBuildingGeoJson, fetchTilesetInfo, type TilesetInfo } from '@/api/building'
 import AdminDrawer from '@/components/AdminDrawer.vue'
 import BuildingPanel from '@/components/BuildingPanel.vue'
+import CompassWidget from '@/components/CompassWidget.vue'
 import DevicePanel from '@/components/DevicePanel.vue'
 import FacilityPanel from '@/components/FacilityPanel.vue'
 import { useBuildingStore } from '@/stores/building'
@@ -24,14 +25,14 @@ import {
   highlightBuilding,
   isBuildingEntity,
   loadBuildingLayer
-} from '@/utils/buildingLayer'
+} from '@/utils/cesium/buildingLayer'
 import {
   clearDeviceHighlight,
   highlightDevice,
   isDeviceId,
   loadDeviceLayer,
   removeDeviceLayer
-} from '@/utils/deviceLayer'
+} from '@/utils/cesium/deviceLayer'
 import { DEVICE_TYPE_META, getDeviceIcon } from '@/utils/deviceIcon'
 import { isFacilityId, loadFacilityLayer, removeFacilityLayer } from '@/utils/facilityLayer'
 import { connectRealtime, disconnectRealtime } from '@/utils/realtimeSocket'
@@ -43,14 +44,14 @@ import {
   isBuildingFeature,
   loadBuildingTileset,
   removeBuildingTileset
-} from '@/utils/tilesetLayer'
+} from '@/utils/cesium/tilesetLayer'
 import {
   createViewer,
   destroyViewer,
   flyToDestination,
   getEventHandler,
   getViewer
-} from '@/utils/viewer'
+} from '@/utils/cesium/viewer'
 import { useAdminStore, type AdminTab } from '@/stores/admin'
 
 const viewerContainer = ref<HTMLDivElement | null>(null)
@@ -64,6 +65,14 @@ const BUILDING_FLY_HEIGHT = 400
 const DEVICE_FLY_HEIGHT = 200
 const FACILITY_FLY_HEIGHT = 200
 const FLY_DURATION = 1.5
+
+/** 中心城区七区的采集范围，仅在相机视野算不出矩形时作为 GeoJSON 降级请求的兜底 bbox */
+const CENTRAL_BBOX = {
+  west: 114.05,
+  south: 30.42,
+  east: 114.47,
+  north: 30.72
+} as const
 
 /** 推送连接状态的中文说明 */
 const REALTIME_STATUS_LABELS: Readonly<Record<string, string>> = {
@@ -144,10 +153,29 @@ async function initBuildingLayer(tilesetInfo: TilesetInfo): Promise<void> {
     await loadBuildingTileset(tilesetInfo.tilesetUrl)
     return
   }
-  const featureCollection = await fetchBuildingGeoJson()
+  // 全域已扩至七区近 3 万栋，后端不再受理无 bbox 的 GeoJSON 请求，
+  // 降级路径按当前视野取范围
+  const featureCollection = await fetchBuildingGeoJson(currentViewBbox())
   buildingDataSource = await loadBuildingLayer(featureCollection)
   await getViewer().dataSources.add(buildingDataSource)
   buildingCount.value = featureCollection.features.length
+}
+
+/**
+ * 取当前相机视野的经纬度范围，拼成后端要求的 west,south,east,north。
+ * 相机接近正下方俯视时 computeViewRectangle 可能返回 undefined，此时回落到中心城区全域范围
+ */
+function currentViewBbox(): string {
+  const scene = getViewer().scene
+  const rectangle = scene.camera.computeViewRectangle(scene.globe.ellipsoid)
+  if (rectangle === undefined) {
+    return `${CENTRAL_BBOX.west},${CENTRAL_BBOX.south},${CENTRAL_BBOX.east},${CENTRAL_BBOX.north}`
+  }
+  const west = CesiumMath.toDegrees(rectangle.west)
+  const south = CesiumMath.toDegrees(rectangle.south)
+  const east = CesiumMath.toDegrees(rectangle.east)
+  const north = CesiumMath.toDegrees(rectangle.north)
+  return `${west},${south},${east},${north}`
 }
 
 /**
@@ -397,6 +425,9 @@ onBeforeUnmount(() => {
       @row-click="handleAdminRowClick"
       @data-changed="handleAdminDataChanged"
     />
+    <!-- 场景就绪后才挂载：子组件 onMounted 早于父组件，
+         此时 createViewer 尚未执行，getViewer() 会抛错 -->
+    <CompassWidget v-if="!sceneLoading" />
     <div v-if="sceneLoading" class="scene-loading" v-loading="true" />
   </div>
 </template>

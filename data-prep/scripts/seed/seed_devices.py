@@ -8,13 +8,18 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 
-TARGET_DEVICE_TOTAL = 600
+TARGET_DEVICE_TOTAL = 2000
+# 实际入库数不得超过 TARGET_DEVICE_TOTAL：抽样按建筑配额走，最后一栋可能跨过上限，
+# 因此在 build_rows 之后按设备数截断，保证 t_device 行数落在目标值以内
+DEVICE_HARD_CAP = TARGET_DEVICE_TOTAL
 # 分层抽样网格边长（度），约 1.1 公里，保证江滩、昙华林、东南片区都能分到配额
 GRID_SIZE_DEGREES = 0.01
 # 每个网格至少抽 1 栋，最多抽 6 栋，避免建筑密集区把配额全吃掉
 MIN_BUILDINGS_PER_CELL = 1
 MAX_BUILDINGS_PER_CELL = 6
-# 每栋布 5 台基础设备，大体量建筑额外加 1 台，按 5.5 的均值反推建筑配额
+# 每栋布 5 台基础设备，大体量建筑额外加 1 台。
+# 注意：该常量已不再参与配额计算——固定 5.5 与实际抽样均值（接近 6.0）偏差导致超出目标 22%，
+# 现由 sample_buildings 按候选建筑实际设备数动态求均值。保留仅作历史参考。
 ESTIMATED_DEVICES_PER_BUILDING = 5.5
 LEVEL_HEIGHT = Decimal("3.2")
 RANDOM_SEED = 42
@@ -181,11 +186,61 @@ def allocate_cell_quotas(
 
 
 def sample_buildings(candidates: list[tuple]) -> list[tuple]:
-    """candidates 每行为 (id, name, levels, height, area, cell_x, cell_y, rank_in_cell, cell_count)"""
+    """candidates 每行为 (id, name, levels, height, area, cell_x, cell_y, rank_in_cell, cell_count)
+
+    抽样按 footprint_area DESC 取格内最大的若干栋，这些恰好是会越过
+    EXTRA_DEVICE_AREA_THRESHOLD 拿到第 6 台设备的建筑，因此实际均值接近 6.0 而非
+    ESTIMATED_DEVICES_PER_BUILDING 假定的 5.5；再叠加 MIN_BUILDINGS_PER_CELL 对稀疏格
+    的强制补齐，旧逻辑会超出目标约 22%。这里改为按候选建筑的真实设备数反推预算。
+    """
     cell_counts = {(row[5], row[6]): row[8] for row in candidates}
-    building_budget = max(1, round(TARGET_DEVICE_TOTAL / ESTIMATED_DEVICES_PER_BUILDING))
+    # 用候选集里实际会落多少台设备来估均值，避免固定系数在扩面后失真
+    device_counts = [len(device_types_for(row[4])) for row in candidates]
+    average_devices = sum(device_counts) / len(device_counts)
+    building_budget = max(1, int(TARGET_DEVICE_TOTAL / average_devices))
     quotas = allocate_cell_quotas(cell_counts, building_budget)
     return [row[:5] for row in candidates if row[7] <= quotas[(row[5], row[6])]]
+
+
+def truncate_to_cap(rows: list[DeviceRow], cell_of: dict[int, tuple[int, int]]) -> list[DeviceRow]:
+    """按建筑整体截断到 DEVICE_HARD_CAP，避免同一建筑只入库一半设备。
+
+    扩面后网格数（约 2400）远多于预算能覆盖的建筑数，MIN_BUILDINGS_PER_CELL 的下限
+    会让候选量大幅超出上限。若按 cell_x, cell_y 顺序直接截断，只会填满最西侧一列网格，
+    设备全挤在一条竖带里。因此改为按网格轮转取用，保证七个区都分到设备。
+    """
+    if len(rows) <= DEVICE_HARD_CAP:
+        return rows
+
+    groups: dict[int, list[DeviceRow]] = {}
+    for row in rows:
+        groups.setdefault(row.building_id, []).append(row)
+
+    # 先把建筑按所属网格归拢，再一轮一轮地从每个网格取一栋
+    by_cell: dict[tuple[int, int], list[int]] = {}
+    for building_id in groups:
+        by_cell.setdefault(cell_of[building_id], []).append(building_id)
+
+    ordered_cells = sorted(by_cell)
+    generator = random.Random(RANDOM_SEED)
+    generator.shuffle(ordered_cells)
+
+    kept: list[DeviceRow] = []
+    depth = 0
+    max_depth = max(len(ids) for ids in by_cell.values())
+    while depth < max_depth and len(kept) < DEVICE_HARD_CAP:
+        for cell in ordered_cells:
+            ids = by_cell[cell]
+            if depth >= len(ids):
+                continue
+            group = groups[ids[depth]]
+            if len(kept) + len(group) > DEVICE_HARD_CAP:
+                continue
+            kept.extend(group)
+            if len(kept) >= DEVICE_HARD_CAP:
+                break
+        depth += 1
+    return kept
 
 
 def build_rows(buildings: list[tuple], generator: random.Random) -> list[DeviceRow]:
@@ -240,7 +295,10 @@ def main() -> None:
             cell_total = len({(row[5], row[6]) for row in candidates})
             print(f"候选建筑 {len(candidates)} 栋，覆盖网格 {cell_total} 个，抽中 {len(buildings)} 栋")
 
-            rows = build_rows(buildings, generator)
+            cell_of = {row[0]: (row[5], row[6]) for row in candidates}
+            rows = truncate_to_cap(build_rows(buildings, generator), cell_of)
+            covered_buildings = len({row.building_id for row in rows})
+            print(f"计划设备数 {len(rows)} 台，覆盖建筑 {covered_buildings} 栋，上限 {DEVICE_HARD_CAP}")
             device_codes = [row.device_code for row in rows]
             cursor.execute("SELECT count(*) FROM t_device WHERE device_code = ANY(%s)", (device_codes,))
             update_count = cursor.fetchone()[0]

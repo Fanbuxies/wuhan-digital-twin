@@ -1,5 +1,7 @@
 import {
   Cartesian3,
+  Color,
+  DirectionalLight,
   ImageryLayer,
   OpenStreetMapImageryProvider,
   ScreenSpaceEventHandler,
@@ -43,6 +45,18 @@ export function createViewer(container: HTMLElement): Viewer {
     infoBox: false,
     selectionIndicator: false
   })
+  // 场景照明与时钟解耦：太阳位置随时钟走，夜间太阳在地平线下时白模只剩微弱环境光会发黑。
+  // 改用固定方向光，任何时段建筑都以本色亮度呈现，且不改变时钟语义。
+  // 强度压到 1.2：受光面不过曝，背光面亮度底由 tileset 的 imageBasedLighting 提供
+  viewerInstance.scene.light = new DirectionalLight({
+    direction: Cartesian3.normalize(new Cartesian3(-0.45, -0.6, -0.66), new Cartesian3()),
+    color: Color.WHITE,
+    intensity: 1.2
+  })
+  // 仅开发环境暴露，供自动化验收读取运行时状态，生产构建不包含
+  if (import.meta.env.DEV) {
+    ;(window as unknown as Record<string, unknown>).__twinViewer = viewerInstance
+  }
   return viewerInstance
 }
 
