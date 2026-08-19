@@ -92,6 +92,13 @@ public class BuildingServiceImpl implements BuildingService {
     @Override
     public JsonNode getGeoJson(String bbox) {
         BboxUtils.Bbox range = BboxUtils.parse(bbox);
+        // 全域已扩展至中心城区七区（近 3 万栋），无 bbox 的全量请求响应体过大且无实际用途，
+        // GeoJSON 降级路径改为只服务当前视野，缺省 bbox 直接拒绝
+        if (range.west() == null) {
+            log.warn("GeoJSON 请求未带 bbox，已拒绝。全域建筑数超出降级路径承载能力");
+            throw new BizException(ResultCodeEnum.PARAM_ERROR,
+                    "全域 GeoJSON 已停用，请带 bbox 参数按视野请求（格式 west,south,east,north）");
+        }
         Integer maxFeatures = appProperties.getBuilding().getGeojsonMaxFeatures();
         Long total = buildingMapper.countByBbox(range.west(), range.south(), range.east(), range.north());
         if (total != null && total == 0) {

@@ -1,0 +1,64 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(docker *)",
+      "Bash(docker compose *)",
+      "Bash(npm run *)",
+      "Bash(mvn *)",
+      "Bash(psql *)",
+      "Bash(python *)",
+      "Bash(node *)",
+      "Bash(curl *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git clean *)",
+      "Bash(chmod -R *)",
+      "Bash(rd /s *)",
+      "Bash(del /f *)",
+      "PowerShell(Remove-Item *)",
+      "Bash(git push *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(git checkout .)",
+      "Bash(git stash drop *)",
+      "Bash(git stash clear)",
+      "Bash(psql * -c DROP TABLE*)",
+      "Bash(psql * -c TRUNCATE*)",
+      "Read(./.env)",
+      "Edit(./.env)",
+      "Read(./**/*.pem)",
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(./.claude/tmp/**)",
+      "Edit(./pgdata/**)",
+      "Edit(./.trash/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify.js\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

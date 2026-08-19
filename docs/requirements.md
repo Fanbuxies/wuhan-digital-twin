@@ -125,7 +125,7 @@ device_id 单列已无唯一索引，只写 ON CONFLICT (device_id) 会直接报
 |---|---|---|
 | GET | /api/building/tileset-info | 3D Tiles 地址 + 建筑总数 + 初始视角参数；未生成 3D Tiles 时 tilesetUrl 为 null，前端走 GeoJSON 降级 |
 | GET | /api/building/{id} | 建筑详情（含 heightSource、中心点经纬度、轮廓 GeoJSON）；建筑不存在返回 404 |
-| GET | /api/building/geojson?bbox= | 降级方案，GeoJSON FeatureCollection；bbox 选填（west,south,east,north），缺省返回全域，条数上限由 app.building.geojson-max-features 控制 |
+| GET | /api/building/geojson?bbox= | 降级方案，GeoJSON FeatureCollection；bbox 必填（west,south,east,north），缺省或非法返回参数错误——全域已扩至中心城区七区近 3 万栋，降级路径只服务当前视野；条数上限由 app.building.geojson-max-features 控制 |
 | GET | /api/building/page?current=&size=&keyword=&buildingType= | 建筑分页（管理端列表），current 从 1 起、size 默认 20 上限 500；keyword 按名称模糊匹配；记录含中心点 lon/lat，不含 footprint 几何 |
 | GET | /api/device/list?buildingId=&type= | 设备列表（含经纬度、altitude），两参数均选填 |
 | GET | /api/device/page?current=&size=&keyword=&deviceType=&status=&buildingId= | 设备分页（管理端列表），current/size 同上；keyword 按名称或编号模糊匹配；记录含 deviceTypeLabel；deviceType/status 取值非法时返回参数错误 |
@@ -192,6 +192,8 @@ WebSocket 推送体格式固定：
   立面临时退为通用窗格；
   GeoJSON 降级路径无 customShader 能力，保持纯色，不做立面图案
 - 建筑层（当前 GeoJSON 降级路径）：GeoJsonDataSource 加载 /api/building/geojson，
+  该接口已要求必带 bbox，前端按相机 computeViewRectangle 取当前视野范围，
+  算不出矩形时回落到七区采集范围兜底；
   clampToGround 关闭，逐 Feature 设 polygon.height = baseAltitude、
   polygon.extrudedHeight = baseAltitude + height（extrudedHeight 是绝对高程）；
   与 tileset 共用同一套「用途 × 高度」取色函数，outline 关闭（5300 栋逐栋描边会掉帧）；
@@ -257,7 +259,11 @@ WebSocket 推送体格式固定：
 同一设备已存在 PENDING 告警时本轮只生成正常值，避免反复刷同一条告警——
 按 docs 早期设想的 5% 算，228 台设备每分钟会产生上百条告警，t_alarm 一小时即上万行。
 每轮 UPSERT t_device_realtime，每 app.simulator.telemetry-tick-interval 轮
-（默认 5，即 15 秒）批量落一次 t_device_telemetry，避免历史表暴涨。
+（默认 20，即 60 秒）批量落一次 t_device_telemetry，避免历史表暴涨。
+t_device_telemetry 按 ts 天粒度实际分区（RANGE 分区，非仅 DEFAULT），
+只保留最近 7 天，通过 DROP 老分区实现（不用 DELETE）；
+维护脚本 data-prep/partition_maintenance.sql 需手动重复执行，
+提前建好未来至少 7 天的分区，避免新数据落回 default。
 通过配置项 app.simulator.enabled 开关，关闭后连调度线程都不创建，
 实时表停止刷新但 /api/device/{id}/realtime 仍可读到最后一次快照。
 

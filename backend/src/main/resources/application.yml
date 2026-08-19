@@ -35,16 +35,26 @@ app:
     # 相对路径，由前端 Vite 从 public/tiles/ 同源静态托管；
     # 留空则 tileset-info 返回 null，前端走 GeoJSON 降级
     url: /tiles/tileset.json
-    # 相机位置是视点而非注视点，视线落在其正北约 height/tan(|pitch|) 处，
-    # 故视点压到 bbox 南侧，斜俯视才能框住全域
+    # 相机位置是视点而非注视点，视线沿 pitch 方向落在其正北某处。
+    # 【重要】不要用平面几何 h/tan(|pitch|) 推算落点——22 km 以上高度地球曲率显著，
+    # 实测落点只有平面几何预测的 0.61 倍（视点 lat 30.3472 / h 22000 / pitch -45
+    # 纸面算落点 lat 30.546，实测屏幕中心却在 lat 30.469，偏差 8.5 km，
+    # 曾导致初始视角完全看不到白模）。故本组数按实测系数 0.6122 反解标定：
+    #   目标落点 = tileset root region 中心 lon 114.2987 / lat 30.5443
+    #   （即 frontend/public/tiles/tileset.json 的 boundingVolume.region 中心，
+    #     lon 113.97129~114.62613 / lat 30.38754~30.70105，不是建筑密度区中心）
+    #   h 28000 / pitch -55 => 实际推进 12.0 km => 视点 lat 30.5443 - 12.0/110.57
+    # 该组合下视锥在落点处半宽 35.1 km / 半高 19.7 km，足以覆盖 62.8 x 34.7 km 的
+    # 数据范围（需 33.0 / 18.2），且视点纬度落在数据范围内而非悬在南侧外
     camera:
-      lon: 114.3140
-      lat: 30.5320
-      height: 4200
+      lon: 114.2987
+      lat: 30.4357
+      height: 28000
       heading: 0
-      pitch: -40
+      pitch: -55
   building:
-    # GeoJSON 单次返回要素上限，当前全域 5303 栋，留足余量；
+    # GeoJSON 单次返回要素上限。范围扩至七区后全域近 3 万栋，降级路径已强制要求
+    # 带 bbox 只服务当前视野，此上限仅用于兜住单个视野内的极端密集情形；
     # 上限继续抬高会让单次响应超过 10 MB，届时应改走 3D Tiles 而非再调此值
     geojson-max-features: 12000
   simulator:
@@ -54,8 +64,8 @@ app:
     fixed-rate: 3000
     # 单设备单次调度的告警概率，约 650 台在线设备约每分钟 26 条
     alarm-probability: 0.002
-    # 每 5 次调度（15 秒）落一批历史遥测
-    telemetry-tick-interval: 5
+    # 每 20 次调度（60 秒）落一批历史遥测
+    telemetry-tick-interval: 20
     # 市政设施调度周期，比设备慢一倍，设施数量更多但变化更缓
     facility-fixed-rate: 6000
     # 单设施单次调度的告警概率，室外设施故障率低于楼内设备

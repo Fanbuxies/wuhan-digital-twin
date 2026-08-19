@@ -54,10 +54,10 @@ public class BuildingController {
     }
 
     @Operation(summary = "建筑轮廓 GeoJSON",
-            description = "bbox 选填，缺省返回全域；返回条数受 app.building.geojson-max-features 限制")
+            description = "bbox 必填，只服务当前视野；返回条数受 app.building.geojson-max-features 限制")
     @GetMapping("/geojson")
     public R<JsonNode> geoJson(
-            @Parameter(description = "视口范围，格式 west,south,east,north")
+            @Parameter(description = "视口范围，格式 west,south,east,north，必填")
             @RequestParam(required = false) String bbox) {
         return R.ok(buildingService.getGeoJson(bbox));
     }

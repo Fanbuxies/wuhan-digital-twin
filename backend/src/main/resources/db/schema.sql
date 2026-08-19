@@ -120,3 +120,14 @@ CREATE TABLE IF NOT EXISTS t_facility (
 CREATE INDEX IF NOT EXISTS idx_t_facility_location ON t_facility USING GIST (location);
 
 CREATE INDEX IF NOT EXISTS idx_t_facility_type_status ON t_facility (facility_type, status);
+
+-- 中心城区行政区边界，供建筑入库时按 ST_Intersects 裁剪范围（见 data-prep/load_to_pg.py）
+CREATE TABLE IF NOT EXISTS t_district (
+    id bigserial PRIMARY KEY,
+    osm_id bigint NOT NULL UNIQUE,
+    name varchar(64) NOT NULL,
+    boundary geometry(MultiPolygon, 4326) NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_t_district_boundary ON t_district USING GIST (boundary);
