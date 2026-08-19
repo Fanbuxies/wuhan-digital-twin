@@ -14,7 +14,7 @@ import {
 
 import type { FacilityItem } from '@/api/facility'
 import { getFacilityIcon } from '@/utils/facilityIcon'
-import { getViewer } from '@/utils/viewer'
+import { getViewer } from '@/utils/cesium/viewer'
 
 /** 拾取标识的种类，用于与设备、建筑分支区分 */
 const FACILITY_ID_KIND = 'facility'

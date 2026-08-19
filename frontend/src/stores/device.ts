@@ -8,7 +8,7 @@ import {
   type DeviceItem,
   type DeviceRealtime
 } from '@/api/device'
-import { updateDeviceState } from '@/utils/deviceLayer'
+import { updateDeviceState } from '@/utils/cesium/deviceLayer'
 import type { RealtimeStatus } from '@/utils/realtimeSocket'
 
 /** 在线状态标识 */
