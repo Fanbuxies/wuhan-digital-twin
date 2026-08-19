@@ -29,6 +29,9 @@ frontend/public/tiles/
 # 后端日志
 logs/
 
+# data-prep 顶层若再出现散落日志，一并忽略
+data-prep/*.log
+
 # Claude Code 本机权限设置
 .claude/settings.local.json
 
