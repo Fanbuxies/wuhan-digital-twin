@@ -247,6 +247,13 @@ WITH input_data (osm_id, name, building_type, levels, height, height_source, coo
         ST_Centroid(footprint)
     FROM repaired
     WHERE GeometryType(footprint) = 'POLYGON' AND ST_IsValid(footprint)
+      -- 行政区裁剪：只保留与中心城区七区边界相交的建筑，
+      -- 把矩形 bbox 带进来的蔡甸/江夏/东西湖等新城区边角剔掉。
+      -- 用 EXISTS + GIST 索引逐栋判定，不预先 ST_Union（并集顶点数巨大，每批重算更慢）
+      AND EXISTS (
+          SELECT 1 FROM t_district AS district
+          WHERE ST_Intersects(repaired.footprint, district.boundary)
+      )
     ON CONFLICT (osm_id) DO UPDATE SET
         name = EXCLUDED.name,
         building_type = EXCLUDED.building_type,
@@ -295,6 +302,13 @@ def main() -> None:
 
     with psycopg2.connect(**connection_parameters()) as connection:
         with connection.cursor() as cursor:
+            # 裁剪依赖 t_district，空表会让 EXISTS 过滤掉全部建筑，先失败快过静默入库 0 条
+            cursor.execute("SELECT count(*) FROM t_district")
+            district_count = cursor.fetchone()[0]
+            if district_count == 0:
+                raise RuntimeError("t_district 为空，先执行 load_districts.py 落七区边界再入库建筑")
+            print(f"行政区裁剪基准：t_district {district_count} 个区")
+
             osm_ids = [row.osm_id for row in rows]
             cursor.execute("SELECT count(*) FROM t_building WHERE osm_id = ANY(%s)", (osm_ids,))
             update_count = cursor.fetchone()[0]
@@ -318,7 +332,7 @@ def main() -> None:
     print(f"总要素数：{len(elements)}")
     print(f"解析出轮廓的 relation 数：{relation_count}")
     print(f"成功入库数：{loaded_count}")
-    print(f"跳过数：{skipped_count}")
+    print(f"跳过数：{skipped_count}（含解析不出轮廓、几何无效，以及被行政区裁剪剔除的范围外建筑）")
     for source in ("osm_height", "osm_levels", "default_by_type"):
         print(f"{source}：{source_counts[source]}")
 
